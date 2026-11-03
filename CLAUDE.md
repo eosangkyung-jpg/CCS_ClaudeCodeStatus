@@ -16,7 +16,6 @@
 - Claude 사용량을 확인하는 공식 방법은 있지만, 모두 사용자가 직접 열어 봐야 한다.
   - claude.ai / 데스크톱 / 모바일: 설정 > 사용량 (claude.ai/settings/usage). 5시간 세션, 주간 한도, 모델별 주간 한도와 각각의 초기화 시각을 보여 줌.
   - Claude Code: `/usage` 명령어.
-  - API(Console): Usage 페이지, Cost 페이지, Usage & Cost Admin API.
 - claude.ai, 데스크톱 앱, Claude Code의 사용량은 같은 한도에 합산되므로, 한 곳에서 계속 보이게 해 두면 작업 도중 갑자기 한도에 걸리는 일을 줄일 수 있다.
 - 비슷한 서드파티 앱(Usagebar, ClaudeBar 등)은 메뉴바 숫자·막대 형태다. 이 프로젝트는 **화면 위에 떠 있는 캐릭터가 상태로 알려 주는 방식**으로 차별화한다.
 
@@ -24,7 +23,6 @@
 
 - Claude Pro / Max 구독 사용자 중 Claude Code를 쓰는 사람 (사용량 조회에 Claude Code 로그인 정보가 필요)
 - 지원 운영체제: macOS, Windows
-- 2차: Claude Console(API) 사용자
 
 ### 1.4 핵심 원칙
 
@@ -50,16 +48,11 @@
 - 일정 사용률 도달 시 알림 (기준값은 미정)
 - 데이터를 못 받아올 때 원인과 해결 방법 안내 (Claude Code 미로그인, 응답 형식 변경 등)
 
-**2차 버전**
-
-- Claude Console(API) 토큰·비용 사용량 표시 (공식 Admin API)
-
 ### 1.6 데이터 소스
 
 | 구분 | 출처 | 방식 | 비고 |
 |---|---|---|---|
 | 구독 플랜 한도 (1차) | Claude Code 로그인 정보 | macOS: 키체인 항목 `Claude Code-credentials` / Windows: `%USERPROFILE%\.claude\.credentials.json` 에서 액세스 토큰을 읽어 `GET https://api.anthropic.com/api/oauth/usage` 호출 | 공개 문서가 없는 엔드포인트. 응답의 `limits` 목록(한도 종류, 사용률, 심각도, 초기화 시각 등)을 사용. 형식이 바뀌어도 앱이 멈추지 않게 처리 필요 |
-| API 사용량 (2차) | Usage & Cost Admin API | `/v1/organizations/usage_report/messages`, `/v1/organizations/cost_report` | 공식 지원. Admin API 키 필요. 1분 단위 버킷 지원. Claude Platform on AWS는 미지원 |
 
 데이터 소스는 갈아 끼울 수 있는 구조로 설계해, 공식 API가 생기거나 엔드포인트가 바뀌어도 위젯 부분은 그대로 쓰게 한다.
 
@@ -145,8 +138,6 @@
 ## 출처
 
 - Anthropic, Claude Code 문서 "Legal and compliance", 발행일 미확인 (2026-11-03 확인), https://code.claude.com/docs/en/legal-and-compliance
-- Anthropic, "Usage and Cost API" 문서, 발행일 미확인, https://platform.claude.com/docs/en/manage-claude/usage-cost-api
-- Anthropic 지원센터, "Cost and Usage Reporting in the Claude Console", 발행일 미확인, https://support.claude.com/en/articles/9534590-cost-and-usage-reporting
 - GordonBeeming, "ClaudeBar" GitHub 저장소 및 소스 코드, 발행일 미확인 (2026-11-03 확인), https://github.com/GordonBeeming/claude-bar
 - Usagebar 공식 사이트, 발행일 미확인, https://usagebar.com/
 - lionhylra, "CC Usage Bar" GitHub 저장소, 발행일 미확인, https://github.com/lionhylra/cc-usage-bar

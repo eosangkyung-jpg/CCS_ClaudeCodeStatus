@@ -13,9 +13,6 @@ contextBridge.exposeInMainWorld('widgetAPI', {
   updateSettings: (settings) => {
     ipcRenderer.send('update-settings', settings);
   },
-  setViewMode: (mode) => {
-    ipcRenderer.send('set-view-mode', mode);
-  },
   requestRefresh: () => {
     ipcRenderer.send('request-refresh');
   },

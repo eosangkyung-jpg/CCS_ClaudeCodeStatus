@@ -1,7 +1,7 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { fetchUsageData, fetchApiCostData, resolveState, calculatePace } = require('./services/usageService');
+const { fetchUsageData, resolveState, calculatePace } = require('./services/usageService');
 
 let mainWindow = null;
 let tray = null;
@@ -20,9 +20,6 @@ const DEFAULT_ALERT_RULES = {
 };
 
 const DEFAULT_SETTINGS = {
-  viewMode: 'subscription', // 'subscription' | 'api'
-  adminApiKey: '',
-  budgetLimit: 50,
   notifyBubble: true,
   notifyToast: true,
   openAtLogin: false,
@@ -194,18 +191,10 @@ function createWindow() {
 async function updateUsage() {
   if (!mainWindow) return;
   try {
-    if (currentSettings.viewMode === 'api') {
-      const data = await fetchApiCostData(currentSettings.adminApiKey, currentSettings.budgetLimit || 50);
-      mainWindow.webContents.send('usage-updated', data);
-      if (data.success) {
-        notifyStateChange(data.state, data.cost.budgetPercent, false);
-      }
-    } else {
-      const data = await fetchUsageData();
-      mainWindow.webContents.send('usage-updated', data);
-      if (data.success) {
-        notifyStateChange(data.state, Math.round(data.session.percent), false);
-      }
+    const data = await fetchUsageData();
+    mainWindow.webContents.send('usage-updated', data);
+    if (data.success) {
+      notifyStateChange(data.state, Math.round(data.session.percent), false);
     }
   } catch (err) {
     console.error('사용량 갱신 오류:', err.message);

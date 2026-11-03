@@ -17,31 +17,11 @@
         </div>
       </div>
 
-      <!-- 상단 모드 전환 탭 ([구독 세션] vs [API 콘솔]) -->
-      <div class="mode-tab-bar">
-        <button class="mode-tab-btn active" id="tabSubscription">👤 구독 세션</button>
-        <button class="mode-tab-btn" id="tabApi">🔑 API 콘솔</button>
-      </div>
-
-      <!-- 알림 설정 패널 (구간별 상세 매트릭스 & API 키 설정) -->
+      <!-- 알림 설정 패널 (구간별 상세 매트릭스 설정) -->
       <div class="settings-panel" id="settingsPanel" style="display: none;">
         <div class="settings-header-row">
-          <div class="settings-title">위젯 설정 & API 키 관리</div>
+          <div class="settings-title">위젯 알림 설정</div>
           <button class="settings-close-btn" id="settingsDoneBtn">✕</button>
-        </div>
-
-        <!-- API 키 & 예산 설정 섹션 -->
-        <div class="api-key-section">
-          <div class="section-sub-title">🔑 Anthropic Admin API 키 연동</div>
-          <input type="password" class="api-key-input" id="inputAdminApiKey" placeholder="sk-ant-admin01-..." autocomplete="off">
-          <div class="budget-input-row">
-            <span>월간 목표 예산: $</span>
-            <input type="number" class="budget-input" id="inputBudgetLimit" value="50" min="1" max="10000">
-          </div>
-          <div class="api-key-actions">
-            <button class="api-save-btn" id="saveApiKeyBtn">API 키 저장</button>
-            <button class="api-clear-btn" id="clearApiKeyBtn">삭제</button>
-          </div>
         </div>
 
         <!-- 빠른 프리셋 버튼 -->

@@ -24,15 +24,6 @@ const errorTitle = document.getElementById('errorTitle');
 const errorDesc = document.getElementById('errorDesc');
 const errorRetryBtn = document.getElementById('errorRetryBtn');
 
-const tabSubscription = document.getElementById('tabSubscription');
-const tabApi = document.getElementById('tabApi');
-const inputAdminApiKey = document.getElementById('inputAdminApiKey');
-const inputBudgetLimit = document.getElementById('inputBudgetLimit');
-const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
-const clearApiKeyBtn = document.getElementById('clearApiKeyBtn');
-
-let currentViewMode = 'subscription';
-
 function formatRemainingTime(isoString) {
   if (!isoString) return '리셋 시각 정보 없음';
   const target = new Date(isoString).getTime();
@@ -91,7 +82,7 @@ function getGradientForPercent(percent) {
 function renderUsage(data) {
   if (!data.success) {
     // 에러 발생 시 친절한 가이드 화면 노출
-    statusBadge.textContent = data.errorCode === 'NO_ADMIN_KEY' ? '키 등록 필요' : '오류 안내';
+    statusBadge.textContent = '오류 안내';
     statusBadge.style.background = '#ef4444';
     percentChip.textContent = '⚠️';
 
@@ -110,52 +101,35 @@ function renderUsage(data) {
   normalBubbleBody.style.display = 'block';
   errorCard.style.display = 'none';
 
-  if (data.isApiMode) {
-    // API 콘솔 모드 렌더링
-    const p = data.cost.budgetPercent;
-    sessionVal.textContent = `$${data.cost.total}`;
-    percentChip.textContent = `${p}%`;
-    sessionBar.style.width = `${Math.min(100, p)}%`;
-    sessionBar.style.background = getGradientForPercent(p);
+  // 구독 세션 모드 렌더링
+  const p = Math.round(data.session.percent);
+  currentResetTimestamp = data.session.resetsAt;
 
-    const usageLabel = document.querySelector('.usage-label');
-    if (usageLabel) usageLabel.textContent = `이번 달 ($${data.cost.total} / $${data.cost.budgetLimit})`;
+  sessionVal.textContent = `${p}%`;
+  percentChip.textContent = `${p}%`;
+  sessionBar.style.width = `${Math.min(100, p)}%`;
+  sessionBar.style.background = getGradientForPercent(p);
 
-    resetTime.textContent = `오늘 사용: $${data.cost.today}`;
-    weeklyVal.textContent = `${p}% 소진`;
-    const weeklyLabelSpan = document.querySelector('.weekly-row span');
-    if (weeklyLabelSpan) weeklyLabelSpan.innerHTML = `예산 소진율: <strong id="weeklyVal">${p}%</strong>`;
-  } else {
-    // 구독 세션 모드 렌더링
-    const p = Math.round(data.session.percent);
-    currentResetTimestamp = data.session.resetsAt;
+  const sessionLabel = document.getElementById('sessionLabel');
+  if (sessionLabel) sessionLabel.textContent = '5시간 세션';
 
-    sessionVal.textContent = `${p}%`;
-    percentChip.textContent = `${p}%`;
-    sessionBar.style.width = `${Math.min(100, p)}%`;
-    sessionBar.style.background = getGradientForPercent(p);
+  resetTime.textContent = formatRemainingTime(data.session.resetsAt);
 
-    const sessionLabel = document.getElementById('sessionLabel');
-    if (sessionLabel) sessionLabel.textContent = '5시간 세션';
+  // 7일 주간 한도 프로그레스 바 렌더링
+  const weeklyP = Math.round(data.weekly.percent);
+  const weeklyVal = document.getElementById('weeklyVal');
+  const weeklyBar = document.getElementById('weeklyBar');
+  const weeklyResetTime = document.getElementById('weeklyResetTime');
+  const weeklySection = document.getElementById('weeklySection');
 
-    resetTime.textContent = formatRemainingTime(data.session.resetsAt);
-
-    // 7일 주간 한도 프로그레스 바 렌더링
-    const weeklyP = Math.round(data.weekly.percent);
-    const weeklyVal = document.getElementById('weeklyVal');
-    const weeklyBar = document.getElementById('weeklyBar');
-    const weeklyResetTime = document.getElementById('weeklyResetTime');
-    const weeklySection = document.getElementById('weeklySection');
-
-    if (weeklySection) weeklySection.style.display = 'flex';
-    if (weeklyVal) weeklyVal.textContent = `${weeklyP}%`;
-    if (weeklyBar) {
-      weeklyBar.style.width = `${Math.min(100, weeklyP)}%`;
-      weeklyBar.style.background = getGradientForPercent(weeklyP);
-    }
-    if (weeklyResetTime) {
-      weeklyResetTime.textContent = formatWeeklyResetTime(data.weekly.resetsAt);
-    }
+  if (weeklySection) weeklySection.style.display = 'flex';
+  if (weeklyVal) weeklyVal.textContent = `${weeklyP}%`;
+  if (weeklyBar) {
+    weeklyBar.style.width = `${Math.min(100, weeklyP)}%`;
+    weeklyBar.style.background = getGradientForPercent(weeklyP);
+  }
+  if (weeklyResetTime) {
+    weeklyResetTime.textContent = formatWeeklyResetTime(data.weekly.resetsAt);
   }
 
   // 소모 속도(Pace) 뱃지 렌더링
@@ -178,7 +152,7 @@ function renderUsage(data) {
   // 캐릭터 이미지 및 특수 효과
   characterImg.src = data.state.image;
 
-  const currentPercent = data.isApiMode ? data.cost.budgetPercent : Math.round(data.session.percent);
+  const currentPercent = Math.round(data.session.percent);
 
   // 95% 이상 긴급 흔들림
   if (currentPercent >= 95 && currentPercent < 100) {
@@ -192,11 +166,9 @@ function renderUsage(data) {
     characterCard.classList.add('exhausted');
     countdownBadge.style.display = 'block';
 
-    if (!data.isApiMode && !countdownInterval) {
+    if (!countdownInterval) {
       updateCountdownText();
       countdownInterval = setInterval(updateCountdownText, 1000);
-    } else if (data.isApiMode) {
-      countdownTimer.textContent = 'BUDGET MAX';
     }
   } else {
     characterCard.classList.remove('exhausted');
@@ -334,62 +306,11 @@ if (window.widgetAPI) {
     });
   }
 
-  // 모드 전환 탭 버튼 이벤트
-  if (tabSubscription && tabApi) {
-    tabSubscription.addEventListener('click', () => {
-      tabSubscription.classList.add('active');
-      tabApi.classList.remove('active');
-      currentViewMode = 'subscription';
-      window.widgetAPI.setViewMode('subscription');
-    });
-
-    tabApi.addEventListener('click', () => {
-      tabApi.classList.add('active');
-      tabSubscription.classList.remove('active');
-      currentViewMode = 'api';
-      window.widgetAPI.setViewMode('api');
-    });
-  }
-
-  // API 키 저장 및 삭제 버튼 이벤트
-  if (saveApiKeyBtn && inputAdminApiKey) {
-    saveApiKeyBtn.addEventListener('click', () => {
-      const key = inputAdminApiKey.value.trim();
-      const budget = parseFloat(inputBudgetLimit.value) || 50;
-      window.widgetAPI.updateSettings({ adminApiKey: key, budgetLimit: budget });
-      statusBadge.textContent = '키 저장됨';
-      setTimeout(() => {
-        window.widgetAPI.requestRefresh();
-      }, 300);
-    });
-  }
-
-  if (clearApiKeyBtn && inputAdminApiKey) {
-    clearApiKeyBtn.addEventListener('click', () => {
-      inputAdminApiKey.value = '';
-      window.widgetAPI.updateSettings({ adminApiKey: '' });
-      statusBadge.textContent = '키 삭제됨';
-      setTimeout(() => {
-        window.widgetAPI.requestRefresh();
-      }, 300);
-    });
-  }
-
   if (window.widgetAPI.onSettingsUpdated) {
     window.widgetAPI.onSettingsUpdated((settings) => {
       if (settingNotifyBubble) settingNotifyBubble.checked = settings.notifyBubble;
       if (settingNotifyToast) settingNotifyToast.checked = settings.notifyToast;
       if (settingOpenAtLogin) settingOpenAtLogin.checked = !!settings.openAtLogin;
-      if (inputAdminApiKey && settings.adminApiKey !== undefined) inputAdminApiKey.value = settings.adminApiKey;
-      if (inputBudgetLimit && settings.budgetLimit !== undefined) inputBudgetLimit.value = settings.budgetLimit;
-
-      if (settings.viewMode === 'api') {
-        if (tabApi) tabApi.classList.add('active');
-        if (tabSubscription) tabSubscription.classList.remove('active');
-      } else {
-        if (tabSubscription) tabSubscription.classList.add('active');
-        if (tabApi) tabApi.classList.remove('active');
-      }
 
       renderMatrix(settings.alertRules);
     });
