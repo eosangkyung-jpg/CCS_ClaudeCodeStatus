@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>실시간 사용량 캐릭터 위젯 - 인터랙티브 조작 마인드맵</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --card-bg: #1e293b;
+      --card-inner: #0f172a;
+      --border: #334155;
+      --border-focus: #38bdf8;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --accent-indigo: #818cf8;
+      --accent-amber: #fbbf24;
+      --accent-emerald: #34d399;
+      --accent-rose: #f43f5e;
+      --accent-purple: #c084fc;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pretendard", sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      padding: 2.5rem 1.5rem;
+      line-height: 1.6;
+    }
+
+    header {
+      max-width: 1000px;
+      margin: 0 auto 2rem;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-indigo));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.8rem;
+    }
+
+    /* 탭 네비게이션 (상위 메뉴 바) */
+    .tab-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.8rem;
+      background: rgba(30, 41, 59, 0.6);
+      padding: 0.5rem;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--muted);
+      padding: 1rem 1.2rem;
+      border-radius: 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+    }
+
+    .tab-btn.active {
+      background: var(--card-bg);
+      color: var(--accent-blue);
+      border-color: var(--accent-blue);
+      box-shadow: 0 4px 15px -3px rgba(56, 189, 248, 0.25);
+    }
+
+    .tab-icon {
+      font-size: 1.3rem;
+    }
+
+    /* 탭 콘텐츠 컨테이너 */
+    .content-panel {
+      display: none;
+      animation: fadeIn 0.25s ease-in-out;
+    }
+
+    .content-panel.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* 상세 카드 스타일 */
+    .panel-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.4);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.2rem;
+    }
+
+    .panel-title-group h2 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .panel-desc {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-top: 0.3rem;
+    }
+
+    .item-count-badge {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-blue);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    /* 트리/인터랙션 리스트 */
+    .action-tree {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+
+    .action-row {
+      background: var(--card-inner);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 1.2rem;
+      transition: all 0.2s ease;
+    }
+
+    .action-row:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      transform: translateX(4px);
+    }
+
+    .trigger-line {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 0.8rem;
+    }
+
+    .tag {
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
+    .tag-hover { background: rgba(251, 191, 36, 0.2); color: var(--accent-amber); border: 1px solid rgba(251, 191, 36, 0.4); }
+    .tag-drag { background: rgba(192, 132, 252, 0.2); color: var(--accent-purple); border: 1px solid rgba(192, 132, 252, 0.4); }
+    .tag-click { background: rgba(56, 189, 248, 0.2); color: var(--accent-blue); border: 1px solid rgba(56, 189, 248, 0.4); }
+    .tag-rclick { background: rgba(244, 63, 94, 0.2); color: var(--accent-rose); border: 1px solid rgba(244, 63, 94, 0.4); }
+    .tag-pass { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid #64748b; }
+
+    .result-box {
+      list-style: none;
+      padding-left: 1rem;
+      border-left: 2px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .result-item {
+      font-size: 0.92rem;
+      color: #cbd5e1;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .result-item::before {
+      content: '↳';
+      color: var(--accent-blue);
+      font-weight: bold;
+    }
+
+    /* 하위 중첩 메뉴 박스 */
+    .sub-panel {
+      margin-top: 0.8rem;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+
+    .sub-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent-indigo);
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .sub-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.6rem;
+    }
+
+    .sub-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 0.5rem 0.8rem;
+      font-size: 0.85rem;
+      color: #e2e8f0;
+    }
+
+    .sub-pill strong {
+      color: var(--accent-blue);
+    }
+
+    footer {
+      max-width: 1000px;
+      margin: 2.5rem auto 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      padding-top: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>실시간 사용량 캐릭터 위젯</h1>
+    <p class="subtitle">상위 메뉴를 클릭하여 각 화면/영역별 조작 기능만 집중해서 확인하세요</p>
+  </header>
+
+  <div class="container">
+
+    <!-- 상위 메뉴 탭 바 -->
+    <nav class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('character')">
+        <span class="tab-icon">🧍</span>
+        <span>1. 캐릭터 본체</span>
+      </button>
+      <button class="tab-btn" onclick="switchTab('popup')">
+        <span class="tab-icon">💬</span>
+        <span>2. 말풍선 팝업 & 설정</span>
+      </button>
+      <button class="tab-btn" onclick="switchTab('tray')">
+        <span class="tab-icon">🖥️</span>
+        <span>3. 작업표시줄 트레이</span>
+      </button>
+    </nav>
+
+    <!-- [탭 1] 캐릭터 본체 -->
+    <div id="tab-character" class="content-panel active">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>🧍 캐릭터 본체 조작 기능</h2>
+            <p class="panel-desc">화면 위에 떠 있는 인물 밈(Meme) 플로팅 카드 위에서 발생하는 모든 동작</p>
+          </div>
+          <span class="item-count-badge">4개 인터랙션</span>
+        </div>
+
+        <ul class="action-tree">
+          <!-- 마우스 올리기 -->
+          <li class="action-row">
+            <div class="trigger-line">
+              <span class="tag tag-hover">HOVER</span>
+              <span>마우스 올리기 (Hover)</span>
+            </div>
+            <ul class="result-box">
+              <li class="result-item">머리 위에 <strong>상세 정보 말풍선 팝업</strong> 자동 슬라이드 노출</li>
+              <li class="result-item">커서를 캐릭터 밖으로 치우면 팝업 자동 사라짐</li>
+            </ul>
+          </li>
+
+          <!-- 드래그 -->
+          <li class="action-row">
+            <div class="trigger-line">
+              <span class="tag tag-drag">DRAG</span>
+              <span>마우스 좌클릭 후 드래그 (창 이동)</span>
+            </div>
+            <ul class="result-box">
+              <li class="result-item">모니터 화면 내 원하는 위치로 위젯 자유 이동</li>
+              <li class="result-item">마우스 손을 놓으면 <strong>현재 좌표 영구 저장</strong> (다음번 앱 실행 시 해당 위치로 복원)</li>
+            </ul>
+          </li>
+
+          <!-- 트레이 숨김 버튼 -->
+          <li class="action-row">
+            <div class="trigger-line">
+              <span class="tag tag-click">CLICK</span>
+              <span>우상단 작은 [ − ] 버튼 클릭</span>
+            </div>
+            <ul class="result-box">
+              <li class="result-item">위젯이 화면에서 사라지고 <strong>작업표시줄 트레이로 숨김</strong></li>
+              <li class="result-item"><em>(앱이 완전 종료된 것이 아니며, 트레이 아이콘 클릭으로 언제든 다시 복원 가능)</em></li>
+            </ul>
+          </li>
+
+          <!-- 투명 공간 클릭 관통 -->
+          <li class="action-row">
+            <div class="trigger-line">
+              <span class="tag tag-pass">CLICK-THROUGH</span>
+              <span>캐릭터 카드 밖 투명 빈 공간 클릭</span>
+            </div>
+            <ul class="result-box">
+              <li class="result-item"><strong>클릭 관통</strong>: 보이지 않는 투명 창에 막히지 않고, 뒷배경(브라우저, VS Code, 바탕화면 등)이 그대로 클릭됨</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- [탭 2] 말풍선 팝업 & 설정 -->
+    <div id="tab-popup" class="content-panel">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>💬 말풍선 팝업 & 인라인 설정 패널</h2>
+            <p class="panel-desc">캐릭터에 마우스를 올렸을 때 나타나는 정보 카드와 [⚙️] 설정 버튼 내부 기능</p>
+          </div>
+          <span class="item-count-badge">3개 주요 기능 + 설정 패널</span>
+        </div>
+
+        <ul class="action-tree">
+          <!-- 눈으로 보는 정보 -->
+          <li class="action-row">
+            <div class="trigger-line">
+              <span class="tag tag-hover">DISPLAY</span>
+              <span>상세 정보 표시 (눈으로 확인하는 정보)</span>
+            </div>
+            <ul class="result-box">
+              <li class="result-item"><strong>5시간 세션 사용량</strong> 게이지 바 & % 수치 & 리셋까지 남은 시간</li>
+              <li class="result-item"><strong>7일 주간 한도</strong> 게이지 바 & % 수치 & 리셋까지 남은 시간</li>
+              <li class="result-item">구간별 감정 상태 문구 (예: "토큰 넉넉해요", "멈춰! 지금 쏘면 끝장납니다")</li>
+              <li class="result-item">최근 데이터 갱신 시각 (예: 14:35:10)</li>
+            </ul>
+          </li>
+
+          <!-- 새로고침 버튼 -->
+          <li class="action-row">
+            <div class="trigger-line">
+              <span class="tag tag-click">CLICK</span>
+              <span>우상단 [ 🔄 ] 새로고침 버튼 클릭</span>
+            </div>
+            <ul class="result-box">
+              <li class="result-item">5분 대기 없이 <strong>즉시 Anthropic API 호출</strong>하여 최신 사용량 강제 동기화</li>
+            </ul>
+          </li>
+
+          <!-- 설정 토글 버튼 및 내부 서브 패널 -->
+          <li class="action-row">
+            <div class="trigger-line">
+              <span class="tag tag-click">CLICK</span>
+              <span>우상단 [ ⚙️ ] 설정 버튼 클릭</span>
+            </div>
+            <ul class="result-box">
+              <li class="result-item">팝업 하단에 <strong>[알림 상세 설정 패널]</strong>이 슬라이드로 열림 / 다시 누르면 닫힘</li>
+            </ul>
+
+            <!-- 슬라이드 확장 패널 내부 기능 -->
+            <div class="sub-panel">
+              <div class="sub-title">⚙️ 설정 패널 내부에서 선택 가능한 옵션들:</div>
+              <div class="sub-grid">
+                <div class="sub-pill">
+                  <strong>💬 말풍선 알림 토글</strong><br>
+                  머리 위 만화풍 팝업 ON/OFF 마스터 스위치
+                </div>
+                <div class="sub-pill">
+                  <strong>🔔 Windows 알림 토글</strong><br>
+                  우측 하단 네이티브 토스트 ON/OFF 마스터 스위치
+                </div>
+                <div class="sub-pill">
+                  <strong>⚡ 원클릭 프리셋 버튼</strong><br>
+                  • [모든 구간] : 8개 구간 전체 켬<br>
+                  • [위험 구간만(80%+)] : 80% 이상만 켬<br>
+                  • [모두 끄기] : 알림 완전 해제
+                </div>
+                <div class="sub-pill">
+                  <strong>📊 8개 구간 매트릭스 표</strong><br>
+                  여유/안정/고민/기도/멈춰/95%/100%/리셋 구간별 말풍선·토스트 개별 체크박스 커스텀
+                </div>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- [탭 3] 작업표시줄 트레이 -->
+    <div id="tab-tray" class="content-panel">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>🖥️ 작업표시줄 시스템 트레이 조작 기능</h2>
+            <p class="panel-desc">Windows 우측 하단 시계 옆 트레이 아이콘 좌클릭 및 우클릭 시 실행되는 기능</p>
+          </div>
+          <span class="item-count-badge">좌클릭 + 5개 우클릭 메뉴</span>
+        </div>
+
+        <ul class="action-tree">
+          <!-- 좌클릭 -->
+          <li class="action-row">
+            <div class="trigger-line">
+              <span class="tag tag-click">LEFT CLICK</span>
+              <span>아이콘 좌클릭 (단일 클릭)</span>
+            </div>
+            <ul class="result-box">
+              <li class="result-item">숨겨져 있던 캐릭터 위젯을 <strong>화면에 즉시 다시 표시 (Show Window)</strong></li>
+            </ul>
+          </li>
+
+          <!-- 우클릭 컨텍스트 메뉴 -->
+          <li class="action-row">
+            <div class="trigger-line">
+              <span class="tag tag-rclick">RIGHT CLICK</span>
+              <span>아이콘 우클릭 (컨텍스트 메뉴 열기)</span>
+            </div>
+            <ul class="result-box">
+              <li class="result-item"><strong>[위젯 보이기 / 숨기기]</strong> 토글</li>
+              <li class="result-item"><strong>[지금 새로고침]</strong> (즉시 API 동기화)</li>
+            </ul>
+
+            <!-- 서브메뉴 1: 알림 방식 -->
+            <div class="sub-panel">
+              <div class="sub-title">🔔 [알림 방식 설정] 서브메뉴:</div>
+              <div class="sub-grid">
+                <div class="sub-pill">☑ <strong>캐릭터 머리 위 말풍선 알림</strong> (체크 토글)</div>
+                <div class="sub-pill">☑ <strong>Windows 토스트 알림</strong> (체크 토글)</div>
+              </div>
+            </div>
+
+            <!-- 서브메뉴 2: 시뮬레이션 -->
+            <div class="sub-panel" style="margin-top: 0.8rem;">
+              <div class="sub-title">🧪 [상태 시뮬레이션] 서브메뉴 (원클릭 표정/알림 테스트):</div>
+              <div class="sub-grid">
+                <div class="sub-pill">• <strong>15% 여유</strong> (초롱초롱)</div>
+                <div class="sub-pill">• <strong>45% 안정</strong> (턱 괴기)</div>
+                <div class="sub-pill">• <strong>70% 고민</strong> (웅크림)</div>
+                <div class="sub-pill">• <strong>85% 기도</strong> (비버 기도)</div>
+                <div class="sub-pill">• <strong>92% 멈춰!</strong> (손바닥 스톱)</div>
+                <div class="sub-pill">• <strong>97% 멘붕</strong> (농구공 + 흔들림)</div>
+                <div class="sub-pill">• <strong>100% 한도 소진</strong> (흑백 + 타이머)</div>
+                <div class="sub-pill">• <strong>리셋 완료</strong> (거대한 손가락)</div>
+              </div>
+            </div>
+
+            <ul class="result-box" style="margin-top: 1rem;">
+              <li class="result-item" style="color: var(--accent-rose); font-weight: 700;">
+                ↳ [종료 (Quit)] 클릭 시: 앱 프로세스 완전 종료 (앱을 완전히 끌 수 있는 유일한 통로)
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    <p>실시간 사용량 캐릭터 위젯 | 인터랙티브 탭 마인드맵 (docs_user_click_map.html)</p>
+  </footer>
+
+  <script>
+    function switchTab(tabKey) {
+      // 모든 탭 버튼 비활성화
+      const buttons = document.querySelectorAll('.tab-btn');
+      buttons.forEach(btn => btn.classList.remove('active'));
+
+      // 모든 콘텐츠 패널 숨기기
+      const panels = document.querySelectorAll('.content-panel');
+      panels.forEach(panel => panel.classList.remove('active'));
+
+      // 선택한 탭 활성화
+      if (tabKey === 'character') {
+        buttons[0].classList.add('active');
+        document.getElementById('tab-character').classList.add('active');
+      } else if (tabKey === 'popup') {
+        buttons[1].classList.add('active');
+        document.getElementById('tab-popup').classList.add('active');
+      } else if (tabKey === 'tray') {
+        buttons[2].classList.add('active');
+        document.getElementById('tab-tray').classList.add('active');
+      }
+    }
+  </script>
+
+</body>
+</html>

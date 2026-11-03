@@ -1,0 +1,388 @@
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+function getCredentialsPath() {
+  return path.join(os.homedir(), '.claude', '.credentials.json');
+}
+
+function readAccessToken() {
+  const credPath = getCredentialsPath();
+  if (!fs.existsSync(credPath)) {
+    throw new Error('Claude Code 자격 증명 파일을 찾을 수 없습니다 (%USERPROFILE%\\.claude\\.credentials.json).');
+  }
+
+  const raw = fs.readFileSync(credPath, 'utf8');
+  const credentials = JSON.parse(raw);
+
+  if (credentials.claudeAiOauth && credentials.claudeAiOauth.accessToken) {
+    return credentials.claudeAiOauth.accessToken;
+  }
+  if (credentials.claudeAiOauthToken) {
+    return credentials.claudeAiOauthToken;
+  }
+  if (credentials.accessToken) {
+    return credentials.accessToken;
+  }
+  throw new Error('자격 증명 파일에 유효한 accessToken이 없습니다.');
+}
+
+function resolveState(sessionPercent) {
+  const p = Math.round(sessionPercent);
+
+  if (p < 30) {
+    return {
+      id: 'state_0_30',
+      label: '여유',
+      badgeColor: '#10b981', // 초록
+      image: '../assets/images/state_0_30.jpg',
+      quote: '토큰 넉넉해요! 뭐든 시켜주세요.',
+      isOverLimit: false,
+    };
+  } else if (p < 60) {
+    return {
+      id: 'state_30_60',
+      label: '안정',
+      badgeColor: '#3b82f6', // 파랑
+      image: '../assets/images/state_30_60.jpg',
+      quote: '순항 중입니다. 페이스 적당해요.',
+      isOverLimit: false,
+    };
+  } else if (p < 80) {
+    return {
+      id: 'state_60_80',
+      label: '고민',
+      badgeColor: '#f59e0b', // 주황
+      image: '../assets/images/state_60_80.jpg',
+      quote: '절반을 훌쩍 넘었어요. 긴 프롬프트 주의!',
+      isOverLimit: false,
+    };
+  } else if (p < 90) {
+    return {
+      id: 'state_80_90',
+      label: '기도',
+      badgeColor: '#f97316', // 진한 주황
+      image: '../assets/images/state_80_90.jpg',
+      quote: '간당간당합니다... 제발 리셋까지 버텨줘',
+      isOverLimit: false,
+    };
+  } else if (p < 95) {
+    return {
+      id: 'state_90_94',
+      label: '멈춰!',
+      badgeColor: '#ef4444', // 빨강
+      image: '../assets/images/state_90_94.jpg',
+      quote: '진짜 마지막 경고! 지금 쏘면 끝장납니다!',
+      isOverLimit: false,
+    };
+  } else {
+    // 95% ~ 100%
+    const isOver = p >= 100;
+    return {
+      id: 'state_95_100',
+      label: isOver ? '한도 소진' : '멘붕/위기',
+      badgeColor: '#8b5cf6', // 보라 / 위험
+      image: '../assets/images/state_95_100.jpg',
+      quote: isOver ? '한도가 소진되었습니다. 쿨다운 대기 중...' : '95% 도달! 곧 뻗습니다!',
+      isOverLimit: isOver,
+    };
+  }
+}
+
+function calculatePace(sessionPercent, resetsAt) {
+  if (!resetsAt || typeof sessionPercent !== 'number') {
+    return null;
+  }
+
+  const resetTarget = new Date(resetsAt).getTime();
+  const now = Date.now();
+  const diffMs = resetTarget - now;
+
+  // 5시간 세션 = 300분 = 18,000,000ms
+  const TOTAL_SESSION_MS = 5 * 60 * 60 * 1000;
+  
+  // 리셋 시각이 비정상이거나 이미 리셋 시간을 초과한 경우
+  if (diffMs <= 0 || diffMs > TOTAL_SESSION_MS) {
+    return null;
+  }
+
+  const elapsedMs = TOTAL_SESSION_MS - diffMs;
+  const elapsedMinutes = elapsedMs / (1000 * 60);
+
+  // 세션 시작 15분 미만인 경우 초기 표본 부족으로 '측정 중' 반환
+  if (elapsedMinutes < 15) {
+    return {
+      ratio: 1.0,
+      tier: 'measuring',
+      badge: '⏱️ 페이스 측정 중',
+      badgeColor: '#64748b',
+      text: '세션 초반(15분 미만)이라 페이스를 계산 중입니다.',
+    };
+  }
+
+  const timeElapsedRatio = elapsedMs / TOTAL_SESSION_MS; // 0.0 ~ 1.0
+  const timeElapsedPercent = Math.max(1, timeElapsedRatio * 100);
+
+  // 페이스 비율 = 사용률 / 시간경과율
+  const paceRatio = sessionPercent / timeElapsedPercent;
+
+  if (paceRatio < 0.8) {
+    return {
+      ratio: Math.round(paceRatio * 100) / 100,
+      tier: 'relaxed',
+      badge: '🌱 여유로운 페이스',
+      badgeColor: '#10b981', // 초록
+      text: '시간 대비 사용량이 적어 여유로워요.',
+    };
+  } else if (paceRatio <= 1.2) {
+    return {
+      ratio: Math.round(paceRatio * 100) / 100,
+      tier: 'optimal',
+      badge: '🟢 적정 페이스',
+      badgeColor: '#3b82f6', // 파랑
+      text: '리셋 주기와 딱 맞는 안정적인 템포입니다.',
+    };
+  } else if (paceRatio <= 1.6) {
+    return {
+      ratio: Math.round(paceRatio * 100) / 100,
+      tier: 'fast',
+      badge: '🟡 조금 빠른 편',
+      badgeColor: '#f59e0b', // 주황
+      text: '소모 속도가 조금 빨라요. 긴 프롬프트 주의!',
+    };
+  } else {
+    return {
+      ratio: Math.round(paceRatio * 100) / 100,
+      tier: 'overdrive',
+      badge: '⚡ 매우 빠름 (주의)',
+      badgeColor: '#ef4444', // 빨강
+      text: '소모가 너무 급격해요! 곧 한도에 걸릴 위험이 있습니다!',
+    };
+  }
+}
+
+async function fetchUsageData() {
+  let token;
+  try {
+    token = readAccessToken();
+  } catch (err) {
+    return {
+      success: false,
+      errorCode: 'NO_CREDENTIALS',
+      errorMessage: 'Claude Code 로그인이 필요합니다.',
+      errorGuide: '터미널(PowerShell/CMD)에서 `claude`를 실행하여 로그인한 후 다시 시도해주세요.',
+    };
+  }
+
+  let response;
+  try {
+    response = await fetch('https://api.anthropic.com/api/oauth/usage', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        'User-Agent': 'sideproj-status-widget/0.1.0',
+      },
+    });
+  } catch (err) {
+    return {
+      success: false,
+      errorCode: 'NETWORK_ERROR',
+      errorMessage: '네트워크 연결 또는 API 응답 오류',
+      errorGuide: '인터넷 연결 상태를 확인하거나 잠시 후 다시 시도해주세요.',
+    };
+  }
+
+  if (response.status === 401) {
+    return {
+      success: false,
+      errorCode: 'AUTH_EXPIRED',
+      errorMessage: 'Claude Code 로그인 인증이 만료되었습니다.',
+      errorGuide: '터미널에서 `claude`를 실행하여 다시 로그인해주세요.',
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false,
+      errorCode: 'API_ERROR',
+      errorMessage: `사용량 API 호출 실패 (${response.status})`,
+      errorGuide: 'Anthropic 서비스 상태를 확인하거나 잠시 후 새로고침해주세요.',
+    };
+  }
+
+  const data = await response.json();
+
+  const sessionPercent = data.five_hour?.utilization ?? 0;
+  const sessionResetsAt = data.five_hour?.resets_at ?? null;
+
+  const weeklyPercent = data.seven_day?.utilization ?? 0;
+  const weeklyResetsAt = data.seven_day?.resets_at ?? null;
+
+  const stateInfo = resolveState(sessionPercent);
+  const paceInfo = calculatePace(sessionPercent, sessionResetsAt);
+
+  return {
+    success: true,
+    session: {
+      percent: sessionPercent,
+      resetsAt: sessionResetsAt,
+    },
+    weekly: {
+      percent: weeklyPercent,
+      resetsAt: weeklyResetsAt,
+    },
+    state: stateInfo,
+    pace: paceInfo,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+function calculateBudgetPace(costSpent, budgetLimit) {
+  if (!budgetLimit || budgetLimit <= 0) return null;
+
+  const now = new Date();
+  const currentDay = now.getDate();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
+  // 이번 달 경과일 비율 (1일~말일)
+  const timeElapsedPercent = Math.max(1, (currentDay / lastDay) * 100);
+  const budgetSpentPercent = (costSpent / budgetLimit) * 100;
+
+  const paceRatio = budgetSpentPercent / timeElapsedPercent;
+
+  if (paceRatio < 0.8) {
+    return {
+      ratio: Math.round(paceRatio * 100) / 100,
+      tier: 'relaxed',
+      badge: '🌱 여유로운 예산',
+      badgeColor: '#10b981',
+      text: '월말까지 예산이 넉넉하게 유지될 페이스입니다.',
+    };
+  } else if (paceRatio <= 1.2) {
+    return {
+      ratio: Math.round(paceRatio * 100) / 100,
+      tier: 'optimal',
+      badge: '🟢 적정 예산 소진',
+      badgeColor: '#3b82f6',
+      text: '목표 예산과 딱 맞게 안정적으로 소진 중입니다.',
+    };
+  } else if (paceRatio <= 1.6) {
+    return {
+      ratio: Math.round(paceRatio * 100) / 100,
+      tier: 'fast',
+      badge: '🟡 조금 빠른 편',
+      badgeColor: '#f59e0b',
+      text: '예산 소진이 조금 빨라요. 월말 초과 주의!',
+    };
+  } else {
+    return {
+      ratio: Math.round(paceRatio * 100) / 100,
+      tier: 'overdrive',
+      badge: '⚡ 예산 초과 위험',
+      badgeColor: '#ef4444',
+      text: '예산 소모가 너무 급격해요! 곧 설정 한도에 도달합니다.',
+    };
+  }
+}
+
+async function fetchApiCostData(adminApiKey, budgetLimit = 50) {
+  if (!adminApiKey || !adminApiKey.trim()) {
+    return {
+      success: false,
+      errorCode: 'NO_ADMIN_KEY',
+      errorMessage: 'Anthropic Admin API 키가 등록되지 않았습니다.',
+      errorGuide: '설정(⚙️) 패널에서 Console Admin API Key를 입력해주세요.',
+    };
+  }
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const endOfMonth = now.toISOString();
+
+  // 공식 Admin API: /v1/organizations/cost_report
+  const url = `https://api.anthropic.com/v1/organizations/cost_report?starting_at=${encodeURIComponent(startOfMonth)}&ending_at=${encodeURIComponent(endOfMonth)}&bucket_width=1d`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'x-api-key': adminApiKey.trim(),
+        'anthropic-version': '2023-06-01',
+        Accept: 'application/json',
+        'User-Agent': 'sideproj-status-widget/0.1.0',
+      },
+    });
+  } catch (err) {
+    return {
+      success: false,
+      errorCode: 'NETWORK_ERROR',
+      errorMessage: 'API 비용 서버 연결 실패',
+      errorGuide: '네트워크 연결 상태를 확인해주세요.',
+    };
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    return {
+      success: false,
+      errorCode: 'INVALID_ADMIN_KEY',
+      errorMessage: '유효하지 않거나 권한이 없는 Admin Key입니다.',
+      errorGuide: 'Console의 Admin API Key(`sk-ant-admin...`)를 확인해주세요.',
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false,
+      errorCode: 'API_ERROR',
+      errorMessage: `비용 조회 실패 (${response.status})`,
+      errorGuide: '잠시 후 다시 시도하거나 Anthropic 상태를 확인해주세요.',
+    };
+  }
+
+  const data = await response.json();
+
+  // data.data 배열의 amount 합산 (단위: USD 센트 또는 달러)
+  // Anthropic API cost_report는 amount 필드를 달러(float) 또는 센트로 제공 (공식: dollars)
+  let totalCost = 0;
+  let todayCost = 0;
+  const todayDateStr = now.toISOString().slice(0, 10);
+
+  if (Array.isArray(data.data)) {
+    data.data.forEach((bucket) => {
+      const amt = Number(bucket.amount) || 0;
+      totalCost += amt;
+      if (bucket.starting_at && bucket.starting_at.startsWith(todayDateStr)) {
+        todayCost += amt;
+      }
+    });
+  }
+
+  // 예산 소진율 (%)
+  const budgetPercent = Math.min(100, Math.round((totalCost / budgetLimit) * 100));
+  const stateInfo = resolveState(budgetPercent);
+  const paceInfo = calculateBudgetPace(totalCost, budgetLimit);
+
+  return {
+    success: true,
+    isApiMode: true,
+    cost: {
+      total: Math.round(totalCost * 100) / 100,
+      today: Math.round(todayCost * 100) / 100,
+      budgetLimit: budgetLimit,
+      budgetPercent: budgetPercent,
+    },
+    state: stateInfo,
+    pace: paceInfo,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+module.exports = {
+  fetchUsageData,
+  fetchApiCostData,
+  resolveState,
+  calculatePace,
+  calculateBudgetPace,
+};

@@ -1,0 +1,21 @@
+{
+  "name": "sideproj-status-widget",
+  "version": "0.1.0",
+  "description": "실시간 Claude 사용량 인물 밈 플로팅 캐릭터 위젯",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test:poc": "node poc_fetch_usage.mjs"
+  },
+  "keywords": [
+    "claude",
+    "usage",
+    "widget",
+    "electron"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^45.2.1"
+  }
+}

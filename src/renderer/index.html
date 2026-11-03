@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Claude Status Widget</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="widget-container">
+    <!-- 호버 시 나타나는 말풍선 카드 -->
+    <div class="speech-bubble" id="speechBubble">
+      <div class="bubble-header">
+        <span class="status-badge" id="statusBadge">로딩 중...</span>
+        <div class="bubble-actions">
+          <button class="action-btn" id="refreshBtn" title="새로고침">🔄</button>
+          <button class="action-btn" id="settingsBtn" title="알림 설정">⚙️</button>
+        </div>
+      </div>
+
+      <!-- 상단 모드 전환 탭 ([구독 세션] vs [API 콘솔]) -->
+      <div class="mode-tab-bar">
+        <button class="mode-tab-btn active" id="tabSubscription">👤 구독 세션</button>
+        <button class="mode-tab-btn" id="tabApi">🔑 API 콘솔</button>
+      </div>
+
+      <!-- 알림 설정 패널 (구간별 상세 매트릭스 & API 키 설정) -->
+      <div class="settings-panel" id="settingsPanel" style="display: none;">
+        <div class="settings-header-row">
+          <div class="settings-title">위젯 설정 & API 키 관리</div>
+          <button class="settings-close-btn" id="settingsDoneBtn">✕</button>
+        </div>
+
+        <!-- API 키 & 예산 설정 섹션 -->
+        <div class="api-key-section">
+          <div class="section-sub-title">🔑 Anthropic Admin API 키 연동</div>
+          <input type="password" class="api-key-input" id="inputAdminApiKey" placeholder="sk-ant-admin01-..." autocomplete="off">
+          <div class="budget-input-row">
+            <span>월간 목표 예산: $</span>
+            <input type="number" class="budget-input" id="inputBudgetLimit" value="50" min="1" max="10000">
+          </div>
+          <div class="api-key-actions">
+            <button class="api-save-btn" id="saveApiKeyBtn">API 키 저장</button>
+            <button class="api-clear-btn" id="clearApiKeyBtn">삭제</button>
+          </div>
+        </div>
+
+        <!-- 빠른 프리셋 버튼 -->
+        <div class="preset-row">
+          <button class="preset-btn" id="presetAll">모든 구간</button>
+          <button class="preset-btn" id="presetDanger">위험 구간만(80%+)</button>
+          <button class="preset-btn" id="presetNone">모두 끄기</button>
+        </div>
+
+        <!-- 마스터 스위치 -->
+        <div class="master-toggles">
+          <label class="setting-item">
+            <input type="checkbox" id="settingNotifyBubble" checked>
+            <span>💬 말풍선 마스터</span>
+          </label>
+          <label class="setting-item">
+            <input type="checkbox" id="settingNotifyToast" checked>
+            <span>🔔 토스트 마스터</span>
+          </label>
+          <label class="setting-item">
+            <input type="checkbox" id="settingOpenAtLogin">
+            <span>💻 부팅 시 자동 시작</span>
+          </label>
+        </div>
+
+        <!-- 구간별 개별 설정 테이블 -->
+        <div class="matrix-table">
+          <div class="matrix-header">
+            <span>구간 (사용량)</span>
+            <span>💬 말풍선</span>
+            <span>🔔 토스트</span>
+          </div>
+          <div class="matrix-body" id="matrixRows">
+            <!-- JS 동적 생성 또는 정적 렌더링 -->
+          </div>
+        </div>
+      </div>
+
+      <div class="bubble-body" id="normalBubbleBody">
+        <!-- 5시간 세션 게이지 -->
+        <div class="gauge-section">
+          <div class="usage-row">
+            <div class="usage-label" id="sessionLabel">5시간 세션</div>
+            <div class="usage-val" id="sessionVal">--%</div>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="sessionBar" style="width: 0%;"></div>
+          </div>
+          <div class="pace-row" id="paceRow" style="display: none;">
+            <span class="pace-badge" id="paceBadge">🟢 적정 페이스</span>
+          </div>
+          <div class="reset-time" id="resetTime">리셋 정보 확인 중...</div>
+        </div>
+
+        <!-- 7일 주간 한도 게이지 (신규 막대그래프) -->
+        <div class="gauge-section" id="weeklySection">
+          <div class="usage-row">
+            <div class="usage-label">7일 주간 한도</div>
+            <div class="usage-val" id="weeklyVal">--%</div>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="weeklyBar" style="width: 0%;"></div>
+          </div>
+          <div class="reset-time" id="weeklyResetTime">주간 리셋 정보 확인 중...</div>
+        </div>
+
+        <div class="quote-text" id="quoteText">데이터를 불러오는 중입니다...</div>
+      </div>
+
+      <!-- 친절한 에러/로그인 가이드 카드 -->
+      <div class="error-card" id="errorCard" style="display: none;">
+        <div class="error-title" id="errorTitle">⚠️ 로그인이 필요합니다</div>
+        <div class="error-desc" id="errorDesc">터미널에서 `claude`를 실행하여 로그인해주세요.</div>
+        <div class="error-actions">
+          <button class="error-retry-btn" id="errorRetryBtn">🔄 다시 확인하기</button>
+        </div>
+      </div>
+
+      <!-- 테스트용 시뮬레이션 버튼들 -->
+      <div class="simulation-bar" id="simBar">
+        <span class="sim-label">테스트:</span>
+        <button class="sim-btn" data-percent="15">15%</button>
+        <button class="sim-btn" data-percent="45">45%</button>
+        <button class="sim-btn" data-percent="70">70%</button>
+        <button class="sim-btn" data-percent="85">85%</button>
+        <button class="sim-btn" data-percent="92">92%</button>
+        <button class="sim-btn" data-percent="97">97%</button>
+        <button class="sim-btn" data-percent="100">100%</button>
+      </div>
+    </div>
+
+    <!-- 캐릭터 영역 (드래그 가능) -->
+    <div class="character-wrapper" id="characterWrapper">
+      <!-- 트레이 숨기기 (-) 버튼 -->
+      <button class="minimize-btn" id="minimizeBtn" title="트레이로 숨기기">−</button>
+
+      <!-- 100% 소진 시 뜨는 타이머 배지 -->
+      <div class="countdown-badge" id="countdownBadge" style="display: none;">
+        ⏳ <span id="countdownTimer">00:00:00</span>
+      </div>
+
+      <!-- 캐릭터 본체 -->
+      <div class="character-card" id="characterCard">
+        <img id="characterImg" src="../assets/images/state_0_30.jpg" alt="캐릭터 상태">
+      </div>
+
+      <!-- 작은 퍼센트 뱃지 -->
+      <div class="percent-chip" id="percentChip">--%</div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
