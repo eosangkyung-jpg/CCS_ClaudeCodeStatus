@@ -1,17 +1,18 @@
 {
   "name": "sideproj-status-widget",
   "version": "0.1.0",
-  "description": "실시간 Claude·Gemini 사용량을 고양이 사진으로 보여 주는 플로팅 위젯",
+  "description": "CCS (ClaudeCodeStatus) — 실시간 Claude 사용량을 고양이 사진으로 보여 주는 플로팅 위젯",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "test:poc": "node poc_fetch_usage.mjs",
     "dist": "electron-builder --win",
-    "dist:portable": "electron-builder --win portable"
+    "dist:portable": "electron-builder --win portable",
+    "dist:mac": "electron-builder --mac"
   },
   "build": {
     "appId": "com.kimbap.sideproj-status-widget",
-    "productName": "CatStatusWidget",
+    "productName": "CCS",
     "directories": {
       "output": "dist"
     },
@@ -26,12 +27,6 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
       "icon": "src/assets/icon.ico"
@@ -42,8 +37,41 @@
       "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "고양이 상태 위젯"
-    }
+      "shortcutName": "CCS",
+      "artifactName": "CCS-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "CCS-Portable.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "icon": "src/assets/icon-mac.png",
+      "category": "public.app-category.utilities",
+      "artifactName": "CCS-mac.${ext}",
+      "extendInfo": {
+        "LSUIElement": true
+      },
+      "identity": "-",
+      "hardenedRuntime": false
+    },
+    "dmg": {
+      "title": "CCS"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "eosangkyung-jpg",
+        "repo": "ccs-releases",
+        "releaseType": "release"
+      }
+    ]
   },
   "keywords": [
     "claude",

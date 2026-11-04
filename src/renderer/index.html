@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>Claude Status Widget</title>
+  <title>CCS</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -31,12 +31,6 @@
             </svg>
           </button>
         </div>
-      </div>
-
-      <!-- 상위 프로바이더 선택 탭 바 ([Claude 플랜] vs [Gemini 크레딧]) -->
-      <div class="provider-tab-bar" role="tablist" aria-label="사용량 종류">
-        <button class="provider-tab-btn active" id="tabClaude" role="tab" aria-selected="true" aria-controls="claudeSection">Claude</button>
-        <button class="provider-tab-btn" id="tabGemini" role="tab" aria-selected="false" aria-controls="geminiSection" tabindex="-1">Gemini</button>
       </div>
 
       <!-- 알림 설정 패널 (구간별 상세 매트릭스 설정) -->
@@ -80,7 +74,7 @@
       </div>
 
       <div class="bubble-body" id="normalBubbleBody">
-        <!-- 1. Claude 플랜 토큰 사용량 섹션 -->
+        <!-- Claude 플랜 사용량 -->
         <div class="provider-section" id="claudeSection">
           <div class="gauge-section main-metric">
             <div class="usage-row">
@@ -111,41 +105,13 @@
           </div>
         </div>
 
-        <!-- 2. Google Cloud Gemini 크레딧 섹션 -->
-        <div class="provider-section" id="geminiSection" style="display: none;">
-          <div class="gauge-section main-metric">
-            <div class="usage-row">
-              <div class="usage-label">체험 크레딧 소진율</div>
-              <div class="usage-val" id="geminiPercentVal">0%</div>
-            </div>
-            <div role="progressbar" aria-label="체험 크레딧 소진율" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" class="progress-bar-bg">
-              <div class="progress-bar-fill" id="geminiBar" style="width: 0%;"></div>
-            </div>
-            <div class="metric-meta-row">
-              <span id="geminiPaceBadge">여유로운 소진</span>
-              <span id="geminiSpendDetail">₩ 0 소진</span>
-            </div>
-          </div>
-
-          <div class="sub-inset-card">
-            <div class="usage-row sub-row">
-              <div class="usage-label">남은 무료 크레딧</div>
-              <div class="usage-val sub-val" id="geminiRemainingVal">₩ 402,977</div>
-            </div>
-            <div class="metric-meta-row sub-meta">
-              <span>프로젝트: gmp-demo-project</span>
-              <span>전체: ₩ 402,977</span>
-            </div>
-          </div>
-        </div>
-
         <div class="quote-text" id="quoteText">데이터를 불러오는 중입니다...</div>
       </div>
 
       <!-- 친절한 에러/로그인 가이드 카드 -->
       <div class="error-card" id="errorCard" style="display: none;">
-        <div class="error-title" id="errorTitle">⚠️ Google Cloud 인증 필요</div>
-        <div class="error-desc" id="errorDesc">터미널에서 `gcloud auth login`을 실행해주세요.</div>
+        <div class="error-title" id="errorTitle">⚠️ Claude Code 로그인 필요</div>
+        <div class="error-desc" id="errorDesc">터미널에서 `claude`를 실행해 로그인해 주세요.</div>
         <div class="error-actions">
           <button class="error-retry-btn" id="errorRetryBtn">🔄 다시 확인하기</button>
         </div>

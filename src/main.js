@@ -2,7 +2,6 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, Notificati
 const path = require('path');
 const fs = require('fs');
 const { fetchUsageData, resolveState, calculatePace } = require('./services/usageService');
-const { fetchGeminiBillingData, resolveGeminiState, calculateCreditPace, TOTAL_FREE_CREDIT_KRW } = require('./services/geminiBillingService');
 
 let mainWindow = null;
 let tray = null;
@@ -101,10 +100,9 @@ function saveSettings(settings) {
     // Windows 시작 시 자동 실행 연동
     if (typeof settings.openAtLogin === 'boolean') {
       try {
-        app.setLoginItemSettings({
-          openAtLogin: settings.openAtLogin,
-          path: app.getPath('exe'),
-        });
+        app.setLoginItemSettings(process.platform === 'win32'
+          ? { openAtLogin: settings.openAtLogin, path: app.getPath('exe') }
+          : { openAtLogin: settings.openAtLogin });
       } catch (e) {
         console.warn('openAtLogin 설정 실패:', e.message);
       }
@@ -136,18 +134,18 @@ function notifyStateChange(stateInfo, percent, isSimulation = false) {
   const rule = currentSettings.alertRules?.[ruleKey] ?? { bubble: true, toast: true };
   const paused = !!currentSettings.notificationsPaused;
 
-  let title = `[Gemini 크레딧] ${stateInfo.label} (${percent}% 소진)`;
+  let title = `[Claude] ${stateInfo.label} (${percent}% 사용)`;
   let body = stateInfo.quote;
   // 위젯과 같은 사진을 쓰기 위해 위젯이 동기화한 배정을 우선 사용 (없으면 서비스 기본값)
   let iconFile = currentSettings.tierCatMap?.[stateInfo.id] || stateInfo.iconFile || (stateInfo.id + '.jpg');
 
   if (isReset) {
-    title = '🎉 [Gemini 크레딧] 크레딧 갱신 완료!';
-    body = '새로운 크레딧 주기가 시작되었습니다.';
+    title = '🎉 [Claude] 세션 리셋 완료!';
+    body = '새 5시간 세션이 시작되었습니다. 다시 달려 볼까요?';
   } else if (stateInfo.id === 'state_95_100') {
-    title = percent >= 100 ? '⛔ [Gemini 크레딧] 체험 크레딧 완전 소진!' : `🚨 [Gemini 크레딧] 소진 임박 (${percent}%)`;
+    title = percent >= 100 ? '⛔ [Claude] 5시간 한도 소진!' : `🚨 [Claude] 한도 임박 (${percent}%)`;
   } else if (stateInfo.id === 'state_90_94') {
-    title = `⚠️ [Gemini 크레딧] 멈춰! (${percent}%)`;
+    title = `⚠️ [Claude] 멈춰! (${percent}%)`;
   }
 
   // 1. 캐릭터 위 일시적 말풍선 팝업
@@ -265,31 +263,27 @@ function createWindow() {
 async function updateUsage() {
   if (!mainWindow || isSimulationActive) return;
   try {
-    const [claudeData, geminiData] = await Promise.all([
-      fetchUsageData().catch((err) => ({ success: false, errorMessage: err.message })),
-      fetchGeminiBillingData(TOTAL_FREE_CREDIT_KRW).catch((err) => ({ success: false, errorMessage: err.message })),
-    ]);
+    const claudeData = await fetchUsageData().catch((err) => ({ success: false, errorMessage: err.message }));
 
-    const claudePercent = claudeData.success ? Math.round(claudeData.session.percent) : 0;
-    const geminiPercent = geminiData.success ? geminiData.billing.consumedPercent : 0;
-    const maxPercent = Math.max(claudePercent, geminiPercent);
-
-    const primaryState = claudeData.success ? claudeData.state : resolveGeminiState(geminiPercent);
-
-    const payload = {
-      success: claudeData.success || geminiData.success,
-      claude: claudeData.success ? claudeData : null,
-      gemini: geminiData.success ? geminiData : null,
-      state: primaryState,
-      primaryPercent: maxPercent,
-      fetchedAt: new Date().toISOString(),
-    };
-
-    mainWindow.webContents.send('usage-updated', payload);
-
-    if (payload.success) {
-      notifyStateChange(primaryState, maxPercent, false);
+    if (!claudeData.success) {
+      // Claude 조회 실패: 원인과 해결 방법을 그대로 위젯 오류 카드에 전달
+      mainWindow.webContents.send('usage-updated', {
+        success: false,
+        errorMessage: claudeData.errorMessage,
+        errorGuide: claudeData.errorGuide,
+      });
+      return;
     }
+
+    const percent = Math.round(claudeData.session.percent);
+    mainWindow.webContents.send('usage-updated', {
+      success: true,
+      claude: claudeData,
+      state: claudeData.state,
+      fetchedAt: new Date().toISOString(),
+    });
+
+    notifyStateChange(claudeData.state, percent, false);
   } catch (err) {
     console.error('사용량 갱신 오류:', err.message);
     mainWindow.webContents.send('usage-updated', {
@@ -308,11 +302,6 @@ function simulateUsage(percent) {
   const resetTime = new Date(now.getTime() + 1000 * 60 * 85);
   const paceInfo = calculatePace(percent, resetTime.toISOString());
 
-  const totalCredit = TOTAL_FREE_CREDIT_KRW;
-  const spentKrw = Math.round((totalCredit * percent) / 100);
-  const remainingKrw = Math.max(0, totalCredit - spentKrw);
-  const creditPaceInfo = calculateCreditPace(spentKrw, totalCredit);
-
   mainWindow.webContents.send('usage-updated', {
     success: true,
     isSimulation: true,
@@ -329,21 +318,7 @@ function simulateUsage(percent) {
       state: stateInfo,
       pace: paceInfo,
     },
-    gemini: {
-      success: true,
-      billing: {
-        projectId: 'gmp-demo-project-478303576',
-        billingAccountId: '011F0E-845EBB-D70DB3',
-        totalCreditKrw: totalCredit,
-        spentKrw: spentKrw,
-        remainingKrw: remainingKrw,
-        consumedPercent: percent,
-        currency: 'KRW',
-      },
-      pace: creditPaceInfo,
-    },
     state: stateInfo,
-    primaryPercent: percent,
     fetchedAt: now.toISOString(),
   });
 
@@ -452,7 +427,7 @@ function updateTrayMenu() {
 function createTray() {
   const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'images', 'cat1.jpg')).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
-  tray.setToolTip('실시간 Claude 사용량 위젯');
+  tray.setToolTip('CCS (ClaudeCodeStatus) · 실시간 사용량');
   updateTrayMenu();
 
   tray.on('click', () => {
@@ -467,6 +442,8 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
+  // macOS: Dock 아이콘 숨김 (위젯은 메뉴 막대 아이콘으로만 조작)
+  if (process.platform === 'darwin' && app.dock) app.dock.hide();
   createWindow();
   createTray();
 

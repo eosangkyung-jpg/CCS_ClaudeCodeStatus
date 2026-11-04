@@ -499,3 +499,57 @@
   - 이 앱의 설정 파일은 PowerShell `Out-File`/`Set-Content`로 쓰지 말 것. 수정이 필요하면 앱을 끄고 Node(`fs.writeFileSync`, BOM 없음)로 쓸 것.
   - 설정 파일 파싱 실패 시 조용히 기본값으로 덮어쓰는 구조는 위험함. 추후 파싱 실패 시 원본을 `.bak`으로 남기는 것을 검토.
   - 고정 크기 창의 확대는 창 크기와 확대 비율을 함께 바꾸고, 위치 기준점을 따로 기억해야 왕복 시 위치가 틀어지지 않음.
+
+---
+
+### 32. [2026-11-04] 앱 이름 CCS(ClaudeCodeStatus) 확정, 정책 관련 내용 문서에서 삭제
+- **결정 (사용자)**:
+  - 배포는 같이 일하는 친구들에게만 직접 나눠 줄 예정이라 Anthropic 정책 검토 내용은 문서에서 모두 뺌.
+  - 앱 이름은 **CCS (ClaudeCodeStatus)**. (처음엔 .ccs 파일에서 따온 "CrazyCatStatus"로 정했다가 같은 날 ClaudeCodeStatus의 약자로 변경)
+- **변경 내역**:
+  - `CLAUDE.md`: 제목을 CCS로 변경, 1.1에 앱 이름 추가, 1.3에 배포 범위(친구들 직접 배포) 명시. 1.4 원칙 5(투명성·오픈소스 검토) 삭제. 1.8 "정책 및 위험 요소" → "위험 요소"로 바꾸고 Anthropic 정책·상표 항목 삭제, 배포 항목을 "포터블 exe 직접 전달 + SmartScreen 안내"로 변경. 1.10에서 오픈소스/라이선스·무료/유료 항목 삭제, 앱 이름·배포 범위 확정 표시. 출처의 Legal and compliance 문서 삭제.
+  - `package.json`: `build.productName` "CatStatusWidget" → "CCS" (빌드 exe 이름).
+  - `index.html` 창 제목 "Claude Status Widget" → "CCS", 트레이 툴팁 "CCS (ClaudeCodeStatus) · 실시간 사용량".
+  - `usageService.js` User-Agent `sideproj-status-widget/0.1.0` → `CCS-ClaudeCodeStatus/0.1.0` (원칙 4: 우리 앱 이름으로 요청).
+- **주의**:
+  - 개발 실행(`npm start`) 설정 폴더는 `package.json`의 `name`(sideproj-status-widget)을 따르므로 그대로 유지됨. `name`은 바꾸지 않음(바꾸면 설정 폴더가 바뀌어 저장된 설정이 사라짐).
+  - 빌드된 앱은 `productName`을 따르므로, 예전 빌드(CatStatusWidget)를 쓰던 사람은 새 빌드에서 위치·알림 설정이 한 번 초기화됨.
+
+---
+
+### 33. [2026-11-04] 친구 배포 구조 구축: Mac 지원, Gemini 계정 정보 분리, 자동 빌드·다운로드 페이지
+- **목표**: 친구가 링크 하나로 자기 OS(Windows/macOS)에 맞는 설치 파일을 받게 한다. 코드 저장소는 비공개 유지(A안: 설치 파일 전용 공개 저장소 `ccs-releases`).
+- **발견한 문제와 해결**:
+  1. **Gemini 계정 정보가 코드에 하드코딩**(결제 계정 ID, 프로젝트 ID, 총 크레딧) → 배포본에 그대로 들어가고, 친구 컴퓨터에서는 매 조회마다 `gcloud` 실행 후 실패.
+     → `geminiBillingService.js`에서 상수 제거, 설정 파일의 `gemini: { billingAccountId, projectId, totalCreditKrw }`를 받아 쓰고 없으면 `NOT_CONFIGURED`로 즉시 반환. `main.js`는 설정이 있을 때만 조회, `geminiEnabled`를 렌더러로 전달. 렌더러는 꺼져 있으면 Claude/Gemini 탭을 숨기고 Claude로 고정. 개발자 본인 설정 파일에는 기존 값을 옮겨 넣음(백업 `.bak` 생성). 빌드된 `app.asar`에서 계정 ID 문자열이 0건임을 확인.
+     - 참고: Gemini 사용 금액(`spentKrw`)은 원래부터 0으로 고정(실제 조회 미구현)이라 Gemini 탭은 항상 0%로 나옴.
+  2. **알림 제목이 항상 "[Gemini 크레딧]"**: `notifyStateChange`가 출처와 무관하게 Gemini 문구를 사용 → `source` 인자 추가, Claude는 `[Claude] … (n% 사용)`, 리셋은 "세션 리셋 완료!", 95%+는 "5시간 한도 소진/임박".
+  3. **macOS 미지원**: 로그인 정보를 Windows 파일 경로에서만 읽음 → macOS는 키체인(`security find-generic-password -s "Claude Code-credentials" -w`)에서 먼저 읽고, 없으면 `~/.claude/.credentials.json`. Dock 아이콘 숨김(`app.dock.hide()` + `LSUIElement`), 자동 시작은 Windows에서만 exe 경로 전달, OS별 오류 안내 문구.
+  4. **바로가기 이름 "고양이 상태 위젯"** → `CCS`.
+- **빌드·배포 설정**:
+  - `package.json`: 설치 파일 이름 고정(`CCS-Setup.exe`, `CCS-mac.dmg`, 포터블은 `CCS-Portable.exe`) → `releases/latest/download/<파일명>` 고정 링크 사용 가능. Windows 기본 타깃은 설치형(nsis)만. macOS는 `universal`(Intel+Apple Silicon) dmg, 아이콘 `src/assets/icon-mac.png`(1024px, 고양이 사진으로 생성), `publish` → `eosangkyung-jpg/ccs-releases`.
+  - macOS 서명: electron-builder는 인증서가 없으면 서명을 **완전히 건너뜀**(자동 ad-hoc 없음) → Apple Silicon에서 "손상됨"으로 막힐 수 있어 `identity: "-"`(ad-hoc) + `hardenedRuntime: false` 지정.
+  - `.github/workflows/release.yml`: `v*` 태그 push 시 windows-latest·macos-latest에서 빌드 후 `--publish always`. Secret `RELEASES_TOKEN`(ccs-releases Contents 쓰기 권한 토큰) 필요.
+  - `release-page/`: 친구용 다운로드 페이지(OS 자동 감지 → 해당 파일 버튼, 모바일 안내, OS별 설치 안내). `RELEASE.md`: 최초 설정과 배포 절차.
+  - 처음 `build/icon.png`에 아이콘을 만들었으나 `.gitignore`가 `build/`를 제외해 CI에 안 올라가므로 `src/assets/`로 이동.
+- **확인**: 로컬에서 `electron-builder --win --publish never`로 `dist/CCS-Setup.exe`(126MB) 생성 성공. 개발자 화면(Gemini 탭 표시, 프로젝트·총액이 설정값으로 표시)과 친구 화면(탭 숨김, Claude만) 캡처 확인.
+- **미확인**: macOS 빌드와 실제 Mac 실행(키체인 읽기, 투명 창 클릭 통과)은 Windows에서 검증 불가 → 첫 태그 배포 후 Mac 쓰는 친구 한 명이 먼저 확인 필요.
+- **교훈 (작업 규칙)**:
+  - 배포본에 들어가는 코드에는 개인 계정 정보를 넣지 말고 각자 설정 파일에서 읽을 것.
+  - `.gitignore`에 걸리는 폴더(`build/`, `dist/`)에 빌드 리소스를 두지 말 것.
+
+---
+
+### 34. [2026-11-04] Gemini 기능 전면 삭제 — Claude 플랜 사용량만 조회
+- **결정 (사용자)**: Gemini는 본인도 보지 않으므로 관련 기능을 모두 삭제하고 Claude 플랜 사용량만 깔끔하게 조회.
+- **배경**: Gemini 사용 금액(`spentKrw`)은 원래부터 0으로 고정되어 실제 조회가 구현된 적이 없었고(33번 참고), 계정 ID 하드코딩·`gcloud` 호출 등 유지 비용만 있었음.
+- **삭제·변경 내역**:
+  - `src/services/geminiBillingService.js` 파일 삭제.
+  - `main.js`: Gemini import, `settings.gemini`, `isGeminiEnabled`, 조회·시뮬레이션의 Gemini 데이터, 알림 제목의 출처 분기(`source`) 제거. `updateUsage()`는 Claude만 조회하고, 실패 시 Claude의 오류 원인·해결 안내(`errorMessage`, `errorGuide`)를 그대로 위젯 오류 카드에 전달하도록 단순화(기존에는 둘 다 실패해야 오류로 처리).
+  - `index.html`: Claude/Gemini 탭 바와 Gemini 섹션 삭제, 오류 카드 기본 문구를 "Claude Code 로그인 필요 / 터미널에서 `claude` 실행"으로 변경.
+  - `renderer.js`: `activeProvider`, 탭 전환·방향키, `setGeminiEnabled`, Gemini 렌더링·목업 데이터, 상태 문구의 Gemini 분기 제거. `applyActiveProviderState` → `applyUsageState`로 이름 변경(항상 5시간 세션 사용률 기준). 카운트다운은 100%면 항상 표시.
+  - `style.css`: 탭 바(`.provider-tab-bar`, `.provider-tab-btn`) 스타일 삭제.
+  - 개발자 본인 설정 파일에서 `gemini` 항목과 33번 작업 때 만든 `.bak` 백업 삭제(앱을 끈 상태에서 Node로 저장).
+  - 문서: `CLAUDE.md` 2.1~2.4에서 Gemini 내용 삭제(조회 대상은 Claude 플랜만), 2.2 표를 단일 "상태 문구" 열로 정리. `RELEASE.md`의 Gemini 설정 안내 삭제.
+- **확인**: 실행 중 위젯에서 실제 사용량(34%, 주간 82% "주간 위험 구간") 표시, 탭 없음, 100% 시뮬레이션에서 흑백·카운트다운 표시, 설정 패널 정상 캡처 확인.
+- **참고**: TROUBLESHOOTING 1~33번의 Gemini 관련 기록은 당시 이력으로 그대로 둠.

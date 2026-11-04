@@ -22,10 +22,6 @@ const errorTitle = document.getElementById('errorTitle');
 const errorDesc = document.getElementById('errorDesc');
 const errorRetryBtn = document.getElementById('errorRetryBtn');
 
-const tabClaude = document.getElementById('tabClaude');
-const tabGemini = document.getElementById('tabGemini');
-const claudeSection = document.getElementById('claudeSection');
-const geminiSection = document.getElementById('geminiSection');
 const weeklyBar = document.getElementById('weeklyBar');
 const weeklyResetTime = document.getElementById('weeklyResetTime');
 const weeklyStatus = document.getElementById('weeklyStatus');
@@ -40,13 +36,10 @@ function getWeeklyStatusText(percent) {
   return '주간 누적 여유';
 }
 
-let activeProvider = localStorage.getItem('sideproj_active_provider') || 'claude';
 let lastUsagePayload = null;
 let currentResetTimestamp = null;
 let countdownInterval = null;
 let lastUsageFailed = false;
-
-const providerTabBar = document.querySelector('.provider-tab-bar');
 
 // 막대(role=progressbar)의 현재 값을 화면 낭독기에 전달
 function setBarValue(bar, percent) {
@@ -63,8 +56,6 @@ function isSettingsOpen() {
 // 창 높이(540px)가 고정이라 둘 이상 동시에 보이면 말풍선 상단이 창 밖으로 잘린다.
 function syncBubbleBodyVisibility() {
   const settingsOpen = isSettingsOpen();
-  // 알림 설정은 프로바이더 공통이므로 설정 중에는 Claude/Gemini 탭도 숨겨 높이를 확보
-  if (providerTabBar) providerTabBar.style.display = settingsOpen ? 'none' : '';
   if (normalBubbleBody) normalBubbleBody.style.display = settingsOpen || lastUsageFailed ? 'none' : 'block';
   if (errorCard) errorCard.style.display = !settingsOpen && lastUsageFailed ? 'flex' : 'none';
 }
@@ -74,31 +65,6 @@ function setSettingsOpen(open) {
   settingsPanel.style.display = open ? 'block' : 'none';
   if (settingsBtn) settingsBtn.setAttribute('aria-expanded', String(open));
   syncBubbleBodyVisibility();
-}
-
-function updateProviderTabs() {
-  if (tabClaude && tabGemini) {
-    const isGemini = activeProvider === 'gemini';
-    tabGemini.setAttribute('aria-selected', String(isGemini));
-    tabClaude.setAttribute('aria-selected', String(!isGemini));
-    tabGemini.tabIndex = isGemini ? 0 : -1;
-    tabClaude.tabIndex = isGemini ? -1 : 0;
-    if (activeProvider === 'gemini') {
-      tabGemini.classList.add('active');
-      tabClaude.classList.remove('active');
-      if (geminiSection) geminiSection.style.display = 'flex';
-      if (claudeSection) claudeSection.style.display = 'none';
-    } else {
-      tabClaude.classList.add('active');
-      tabGemini.classList.remove('active');
-      if (claudeSection) claudeSection.style.display = 'flex';
-      if (geminiSection) geminiSection.style.display = 'none';
-    }
-  }
-
-  if (lastUsagePayload) {
-    applyActiveProviderState(lastUsagePayload);
-  }
 }
 
 function formatRemainingTime(isoString) {
@@ -250,9 +216,9 @@ function shuffleCatMap() {
   syncTierCatMapToMain(map);
 
   if (lastUsagePayload) {
-    applyActiveProviderState(lastUsagePayload);
+    applyUsageState(lastUsagePayload);
   } else {
-    applyActiveProviderState({ primaryPercent: 0 });
+    applyUsageState({ claude: null });
   }
 }
 
@@ -274,35 +240,35 @@ function getLocalStateForPercent(percent) {
       id: 'state_0_30',
       label: '여유',
       image: getImageDataUri(getCatImageForTier('state_0_30')),
-      quote: activeProvider === 'gemini' ? '크레딧 넉넉해요! 마음껏 질문하세요 💸' : '토큰 넉넉해요! 뭐든 시켜주세요.',
+      quote: '토큰 넉넉해요! 뭐든 시켜주세요.',
     };
   } else if (p < 60) {
     return {
       id: 'state_30_60',
       label: '안정',
       image: getImageDataUri(getCatImageForTier('state_30_60')),
-      quote: activeProvider === 'gemini' ? '순항 중입니다. 크레딧 소진 페이스 적당해요.' : '순항 중입니다. 페이스 아주 좋아요.',
+      quote: '순항 중입니다. 페이스 아주 좋아요.',
     };
   } else if (p < 80) {
     return {
       id: 'state_60_80',
       label: '고민',
       image: getImageDataUri(getCatImageForTier('state_60_80')),
-      quote: activeProvider === 'gemini' ? '절반을 넘었어요. 긴 프롬프트/대용량 토큰 주의!' : '절반을 훌쩍 넘었어요. 긴 프롬프트 주의!',
+      quote: '절반을 훌쩍 넘었어요. 긴 프롬프트 주의!',
     };
   } else if (p < 90) {
     return {
       id: 'state_80_90',
       label: '기도',
       image: getImageDataUri(getCatImageForTier('state_80_90')),
-      quote: activeProvider === 'gemini' ? '간당간당합니다... 제발 체험 크레딧 버텨줘 🙏' : '간당간당합니다... 제발 리셋까지 버텨줘 🙏',
+      quote: '간당간당합니다... 제발 리셋까지 버텨줘 🙏',
     };
   } else if (p < 95) {
     return {
       id: 'state_90_94',
       label: '멈춰!',
       image: getImageDataUri(getCatImageForTier('state_90_94')),
-      quote: activeProvider === 'gemini' ? '크레딧 소진 임박! 곧 유료 과금 전환 위험!' : '진짜 마지막 경고! 지금 쏘면 끝장납니다!',
+      quote: '진짜 마지막 경고! 지금 쏘면 끝장납니다!',
     };
   } else {
     const isOver = p >= 100;
@@ -315,16 +281,8 @@ function getLocalStateForPercent(percent) {
   }
 }
 
-function applyActiveProviderState(data) {
-  let p = 0;
-
-  if (activeProvider === 'claude' && data.claude && data.claude.success) {
-    p = Math.round(data.claude.session.percent);
-  } else if (activeProvider === 'gemini' && data.gemini && data.gemini.success) {
-    p = Math.round(data.gemini.billing.consumedPercent);
-  } else {
-    p = Math.round(data.primaryPercent || 0);
-  }
+function applyUsageState(data) {
+  const p = data && data.claude && data.claude.success ? Math.round(data.claude.session.percent) : 0;
 
   percentChip.textContent = `${p}%`;
 
@@ -364,8 +322,8 @@ function applyActiveProviderState(data) {
     characterCard.classList.remove('exhausted');
   }
 
-  // 리셋 카운트다운은 Claude 전용 (Gemini 무료 체험 크레딧은 리셋 개념 없음)
-  if (p >= 100 && activeProvider === 'claude') {
+  // 100% 소진 시 5시간 세션 리셋까지 카운트다운
+  if (p >= 100) {
     countdownBadge.style.display = 'flex';
     if (!countdownInterval) {
       updateCountdownText();
@@ -392,7 +350,7 @@ function renderUsage(data) {
     syncBubbleBodyVisibility();
 
     errorTitle.textContent = data.errorMessage || '데이터를 불러오지 못했습니다.';
-    errorDesc.textContent = data.errorGuide || 'Claude 및 Google Cloud 인증 상태를 확인해주세요.';
+    errorDesc.textContent = data.errorGuide || 'Claude Code 로그인 상태를 확인해 주세요.';
 
     characterCard.classList.remove('shake', 'exhausted');
     countdownBadge.style.display = 'none';
@@ -402,7 +360,7 @@ function renderUsage(data) {
   lastUsageFailed = false;
   syncBubbleBodyVisibility();
 
-  // 1. Claude 플랜 섹션 렌더링
+  // Claude 플랜 사용량 렌더링
   const paceBadge = document.getElementById('paceBadge');
   if (data.claude && data.claude.success) {
     const c = data.claude;
@@ -443,42 +401,8 @@ function renderUsage(data) {
     if (weeklyStatus) weeklyStatus.textContent = '주간 한도 정보 없음';
   }
 
-  // 2. Gemini 크레딧 섹션 렌더링
-  const geminiPaceBadge = document.getElementById('geminiPaceBadge');
-  const geminiPercentVal = document.getElementById('geminiPercentVal');
-  const geminiBar = document.getElementById('geminiBar');
-  const geminiSpendDetail = document.getElementById('geminiSpendDetail');
-  const geminiRemainingVal = document.getElementById('geminiRemainingVal');
-
-  if (data.gemini && data.gemini.success) {
-    const g = data.gemini.billing;
-    const gPercent = g.consumedPercent;
-
-    if (geminiPercentVal) {
-      geminiPercentVal.textContent = `${gPercent}%`;
-      const gTheme = interpolatePinkRed(gPercent);
-      geminiPercentVal.style.color = gTheme.textColor;
-      if (geminiBar) {
-        geminiBar.style.width = `${Math.min(100, gPercent)}%`;
-        setBarValue(geminiBar, gPercent);
-        geminiBar.style.background = gTheme.barGradient;
-        geminiBar.style.boxShadow = gTheme.glow;
-      }
-    }
-    if (geminiSpendDetail) {
-      geminiSpendDetail.textContent = `사용한 금액: ₩ ${Math.round(g.spentKrw).toLocaleString('ko-KR')} 소진`;
-    }
-    if (geminiRemainingVal) {
-      geminiRemainingVal.textContent = `₩ ${Math.round(g.remainingKrw).toLocaleString('ko-KR')}`;
-    }
-
-    if (data.gemini.pace && geminiPaceBadge) {
-      geminiPaceBadge.textContent = data.gemini.pace.badge;
-    }
-  }
-
-  // 활성 탭 상태 및 표정 갱신
-  updateProviderTabs();
+  // 고양이 사진·상태 문구·연출 갱신
+  applyUsageState(data);
 }
 
 // 이벤트 리스너 등록
@@ -486,21 +410,6 @@ if (window.widgetAPI) {
   window.widgetAPI.onUsageUpdated((data) => {
     renderUsage(data);
   });
-
-  // 상단 프로바이더 모드 탭 클릭 이벤트
-  if (tabClaude && tabGemini) {
-    tabClaude.addEventListener('click', () => {
-      activeProvider = 'claude';
-      localStorage.setItem('sideproj_active_provider', 'claude');
-      updateProviderTabs();
-    });
-
-    tabGemini.addEventListener('click', () => {
-      activeProvider = 'gemini';
-      localStorage.setItem('sideproj_active_provider', 'gemini');
-      updateProviderTabs();
-    });
-  }
 
   refreshBtn.addEventListener('click', () => {
     statusBadge.textContent = '갱신 중...';
@@ -709,20 +618,10 @@ if (window.widgetAPI) {
       // 2. 렌더러에서 즉시 로컬 강제 갱신 (지연 및 씹힘 원천 방지)
       const mockData = {
         success: true,
-        primaryPercent: p,
         claude: {
           success: true,
           session: { percent: p, resetsAt: new Date(Date.now() + 1000 * 60 * 90).toISOString() },
           weekly: { percent: Math.min(100, p + 10), resetsAt: new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString() },
-        },
-        gemini: {
-          success: true,
-          billing: {
-            totalCreditKrw: 402977,
-            spentKrw: Math.round((402977 * p) / 100),
-            remainingKrw: Math.max(0, 402977 - Math.round((402977 * p) / 100)),
-            consumedPercent: p,
-          },
         },
       };
 
@@ -823,17 +722,6 @@ if (window.widgetAPI) {
     updateBubbleState();
   });
 
-  // Claude/Gemini 탭: 좌우 방향키로 이동
-  if (providerTabBar && tabClaude && tabGemini) {
-    providerTabBar.addEventListener('keydown', (e) => {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      e.preventDefault();
-      const next = document.activeElement === tabClaude ? tabGemini : tabClaude;
-      next.focus();
-      next.click();
-    });
-  }
-
   // 빈 투명 영역 클릭 관통 (Click-through) 처리
   window.addEventListener('mousemove', (e) => {
     if (!window.widgetAPI) return;
@@ -845,8 +733,7 @@ if (window.widgetAPI) {
       e.target.closest('#speechBubble') ||
       e.target.closest('.simulation-bar') ||
       e.target.closest('.sim-btn') ||
-      e.target.closest('.action-btn') ||
-      e.target.closest('.provider-tab-btn');
+      e.target.closest('.action-btn');
 
     if (isInteractive) {
       window.widgetAPI.setIgnoreMouseEvents(false);

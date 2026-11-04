@@ -6,14 +6,38 @@ function getCredentialsPath() {
   return path.join(os.homedir(), '.claude', '.credentials.json');
 }
 
-function readAccessToken() {
+// macOS: Claude Code는 로그인 정보를 키체인 항목 'Claude Code-credentials'에 저장한다 (읽기만 함).
+// 처음 읽을 때 macOS가 '키체인 접근 허용' 창을 한 번 띄운다.
+function readMacKeychainCredentials() {
+  const { execFileSync } = require('child_process');
+  try {
+    const out = execFileSync('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'], {
+      encoding: 'utf8',
+      timeout: 10000,
+    }).trim();
+    return out ? JSON.parse(out) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function readCredentials() {
+  if (process.platform === 'darwin') {
+    const fromKeychain = readMacKeychainCredentials();
+    if (fromKeychain) return fromKeychain;
+  }
+  // Windows(및 키체인에 없을 때의 macOS): ~/.claude/.credentials.json
   const credPath = getCredentialsPath();
   if (!fs.existsSync(credPath)) {
-    throw new Error('Claude Code 자격 증명 파일을 찾을 수 없습니다 (%USERPROFILE%\\.claude\\.credentials.json).');
+    throw new Error(process.platform === 'darwin'
+      ? 'Claude Code 로그인 정보를 키체인에서 찾을 수 없습니다.'
+      : 'Claude Code 자격 증명 파일을 찾을 수 없습니다 (%USERPROFILE%\\.claude\\.credentials.json).');
   }
+  return JSON.parse(fs.readFileSync(credPath, 'utf8').replace(/^\uFEFF/, ''));
+}
 
-  const raw = fs.readFileSync(credPath, 'utf8');
-  const credentials = JSON.parse(raw);
+function readAccessToken() {
+  const credentials = readCredentials();
 
   if (credentials.claudeAiOauth && credentials.claudeAiOauth.accessToken) {
     return credentials.claudeAiOauth.accessToken;
@@ -177,7 +201,9 @@ async function fetchUsageData() {
       success: false,
       errorCode: 'NO_CREDENTIALS',
       errorMessage: 'Claude Code 로그인이 필요합니다.',
-      errorGuide: '터미널(PowerShell/CMD)에서 `claude`를 실행하여 로그인한 후 다시 시도해주세요.',
+      errorGuide: process.platform === 'darwin'
+        ? '터미널에서 `claude`를 실행해 로그인한 뒤, 키체인 접근을 허용해 주세요.'
+        : '터미널(PowerShell/CMD)에서 `claude`를 실행하여 로그인한 후 다시 시도해주세요.',
     };
   }
 
@@ -188,7 +214,7 @@ async function fetchUsageData() {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
-        'User-Agent': 'sideproj-status-widget/0.1.0',
+        'User-Agent': 'CCS-ClaudeCodeStatus/0.1.0',
       },
     });
   } catch (err) {

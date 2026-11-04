@@ -1,0 +1,42 @@
+# CCS 자동 빌드·배포
+# v로 시작하는 태그(예: v0.2.0)를 push하면 Windows와 macOS 설치 파일을 동시에 빌드해
+# 공개 저장소 eosangkyung-jpg/ccs-releases 의 Releases에 올린다. (코드 저장소는 비공개 유지)
+#
+# 필요한 저장소 Secret:
+#   RELEASES_TOKEN — ccs-releases 저장소에 Contents 쓰기 권한이 있는 GitHub 토큰 (RELEASE.md 참고)
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win
+          - os: macos-latest
+            target: --mac
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build and publish
+        run: npx electron-builder ${{ matrix.target }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          # 인증서 없음: Windows는 서명 생략, macOS는 package.json의 identity "-"로 ad-hoc 서명
