@@ -568,3 +568,19 @@
   - 새 저장소는 `.gitignore`를 먼저 만들고 첫 커밋할 것. 커밋 전 `git status`로 `node_modules`, `dist`가 없는지 확인.
   - `filter-branch`처럼 기록을 다시 쓰는 작업은 앱을 끄고, 백업 브랜치를 만든 뒤 진행하고, 끝나면 `npm install`로 의존성을 다시 확인할 것.
   - 백업 브랜치 `backup-before-cleanup`과 `refs/original/`은 로컬에만 있음. 새 기록이 문제없으면 삭제 가능(`git branch -D backup-before-cleanup`, `git update-ref -d refs/original/refs/heads/...`).
+
+---
+
+### 36. [2026-11-04] 첫 배포(v0.1.0): Mac 빌드 서버 배정 실패 → Intel Mac 서버로 변경, v0.1.1 재배포
+- **현상**:
+  - `v0.1.0` 태그 자동 빌드에서 Windows는 `CCS-Setup.exe` 업로드까지 됐으나 마무리 업로드 중 `Release: Internal server error`(GitHub 500)로 실패 표시. 재실행(Re-run) 시 성공.
+  - Mac 작업은 두 번 모두 `The job was not acquired by Runner of type hosted even after multiple attempts` / `Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.` → 빌드가 시작조차 되지 않고 취소.
+  - 노란 경고: `actions/checkout@v4`, `actions/setup-node@v4`가 지원 종료 예정인 Node 20 기반.
+- **원인**: 코드·설정 오류가 아니라 GitHub 호스티드 macOS arm64(`macos-latest`) 러너 용량 부족.
+- **해결**:
+  - `.github/workflows/release.yml`: Mac 러너를 `macos-latest` → `macos-15-intel`로 변경(Intel 러너에서도 `universal` dmg 생성 가능, 결과물 동일). `checkout@v5`, `setup-node@v5`, Node 22로 상향.
+  - Re-run은 예전 커밋의 워크플로를 그대로 쓰므로 변경을 반영하려면 새 태그가 필요 → 버전 `0.1.1`(package.json, package-lock.json)로 올리고 `v0.1.1` 태그로 재배포. 다운로드 페이지는 `releases/latest`를 가리켜 자동으로 v0.1.1을 받게 됨.
+  - `usageService.js` User-Agent 버전을 하드코딩(`0.1.0`) 대신 `package.json`의 version에서 읽도록 변경.
+- **교훈 (작업 규칙)**:
+  - GitHub 호스티드 Mac 러너는 혼잡할 수 있음. 배포가 막히면 러너 라벨을 바꾸거나 시간대를 옮겨 재시도.
+  - 워크플로 파일을 고친 뒤에는 Re-run이 아니라 새 태그로 실행해야 반영된다.
