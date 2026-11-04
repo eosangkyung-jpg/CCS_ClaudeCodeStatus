@@ -2,11 +2,13 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, Notificati
 const path = require('path');
 const fs = require('fs');
 const { fetchUsageData, resolveState, calculatePace } = require('./services/usageService');
+const { fetchGeminiBillingData, resolveGeminiState, calculateCreditPace, TOTAL_FREE_CREDIT_KRW } = require('./services/geminiBillingService');
 
 let mainWindow = null;
 let tray = null;
 let pollInterval = null;
 let lastStateId = null;
+let isSimulationActive = false;
 
 const DEFAULT_ALERT_RULES = {
   state_0_30: { bubble: true, toast: true },
@@ -100,21 +102,20 @@ function notifyStateChange(stateInfo, percent, isSimulation = false) {
 
   const rule = currentSettings.alertRules?.[ruleKey] ?? { bubble: true, toast: true };
 
-  let title = `[Claude 사용량] ${stateInfo.label} (${percent}%)`;
+  let title = `[Gemini 크레딧] ${stateInfo.label} (${percent}% 소진)`;
   let body = stateInfo.quote;
-  let iconFile = stateInfo.id + '.jpg';
+  let iconFile = stateInfo.iconFile || (stateInfo.id + '.jpg');
 
   if (isReset) {
-    title = '🎉 [Claude 사용량] 세션 리셋 완료!';
-    body = '새로운 5시간 세션이 시작되었습니다. 토큰이 완충되었습니다!';
-    iconFile = 'state_reset.jpg';
+    title = '🎉 [Gemini 크레딧] 크레딧 갱신 완료!';
+    body = '새로운 크레딧 주기가 시작되었습니다.';
   } else if (stateInfo.id === 'state_95_100') {
-    title = percent >= 100 ? '⛔ [Claude 사용량] 한도 소진!' : `🚨 [Claude 사용량] 한도 임박 (${percent}%)`;
+    title = percent >= 100 ? '⛔ [Gemini 크레딧] 체험 크레딧 완전 소진!' : `🚨 [Gemini 크레딧] 소진 임박 (${percent}%)`;
   } else if (stateInfo.id === 'state_90_94') {
-    title = `⚠️ [Claude 사용량] 멈춰! (${percent}%)`;
+    title = `⚠️ [Gemini 크레딧] 멈춰! (${percent}%)`;
   }
 
-  // 1. 캐릭터 위 일시적 말풍선 팝업 (전체 옵션 및 해당 구간 옵션이 모두 ON일 때)
+  // 1. 캐릭터 위 일시적 말풍선 팝업
   if (currentSettings.notifyBubble && rule.bubble && mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('trigger-bubble-alert', {
       duration: currentSettings.bubbleDuration || 3500,
@@ -124,7 +125,7 @@ function notifyStateChange(stateInfo, percent, isSimulation = false) {
     });
   }
 
-  // 2. Windows 네이티브 토스트 알림 (전체 옵션 및 해당 구간 옵션이 모두 ON일 때)
+  // 2. Windows 네이티브 토스트 알림
   if (currentSettings.notifyToast && rule.toast && Notification.isSupported()) {
     const iconPath = path.join(__dirname, 'assets', 'images', iconFile);
     const notification = new Notification({
@@ -150,7 +151,7 @@ function getDefaultPosition(width, height) {
 
 function createWindow() {
   const windowWidth = 340;
-  const windowHeight = 480;
+  const windowHeight = 540;
 
   const savedSettings = loadSettings();
   const defaultPos = getDefaultPosition(windowWidth, windowHeight);
@@ -183,18 +184,39 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
     mainWindow.webContents.send('settings-updated', currentSettings);
     updateUsage();
   });
 }
 
 async function updateUsage() {
-  if (!mainWindow) return;
+  if (!mainWindow || isSimulationActive) return;
   try {
-    const data = await fetchUsageData();
-    mainWindow.webContents.send('usage-updated', data);
-    if (data.success) {
-      notifyStateChange(data.state, Math.round(data.session.percent), false);
+    const [claudeData, geminiData] = await Promise.all([
+      fetchUsageData().catch((err) => ({ success: false, errorMessage: err.message })),
+      fetchGeminiBillingData(TOTAL_FREE_CREDIT_KRW).catch((err) => ({ success: false, errorMessage: err.message })),
+    ]);
+
+    const claudePercent = claudeData.success ? Math.round(claudeData.session.percent) : 0;
+    const geminiPercent = geminiData.success ? geminiData.billing.consumedPercent : 0;
+    const maxPercent = Math.max(claudePercent, geminiPercent);
+
+    const primaryState = claudeData.success ? claudeData.state : resolveGeminiState(geminiPercent);
+
+    const payload = {
+      success: claudeData.success || geminiData.success,
+      claude: claudeData.success ? claudeData : null,
+      gemini: geminiData.success ? geminiData : null,
+      state: primaryState,
+      primaryPercent: maxPercent,
+      fetchedAt: new Date().toISOString(),
+    };
+
+    mainWindow.webContents.send('usage-updated', payload);
+
+    if (payload.success) {
+      notifyStateChange(primaryState, maxPercent, false);
     }
   } catch (err) {
     console.error('사용량 갱신 오류:', err.message);
@@ -208,25 +230,48 @@ async function updateUsage() {
 
 function simulateUsage(percent) {
   if (!mainWindow) return;
+  isSimulationActive = true;
   const stateInfo = resolveState(percent);
   const now = new Date();
-  // 가상의 남은 시간: 1시간 25분 (전체 5시간 중 약 3시간 35분 경과 = 71.6% 시간 경과)
   const resetTime = new Date(now.getTime() + 1000 * 60 * 85);
   const paceInfo = calculatePace(percent, resetTime.toISOString());
+
+  const totalCredit = TOTAL_FREE_CREDIT_KRW;
+  const spentKrw = Math.round((totalCredit * percent) / 100);
+  const remainingKrw = Math.max(0, totalCredit - spentKrw);
+  const creditPaceInfo = calculateCreditPace(spentKrw, totalCredit);
 
   mainWindow.webContents.send('usage-updated', {
     success: true,
     isSimulation: true,
-    session: {
-      percent: percent,
-      resetsAt: resetTime.toISOString(),
+    claude: {
+      success: true,
+      session: {
+        percent: percent,
+        resetsAt: resetTime.toISOString(),
+      },
+      weekly: {
+        percent: Math.min(100, percent + 10),
+        resetsAt: new Date(now.getTime() + 1000 * 60 * 60 * 48).toISOString(),
+      },
+      state: stateInfo,
+      pace: paceInfo,
     },
-    weekly: {
-      percent: Math.min(100, percent + 10),
-      resetsAt: new Date(now.getTime() + 1000 * 60 * 60 * 48).toISOString(),
+    gemini: {
+      success: true,
+      billing: {
+        projectId: 'gmp-demo-project-478303576',
+        billingAccountId: '011F0E-845EBB-D70DB3',
+        totalCreditKrw: totalCredit,
+        spentKrw: spentKrw,
+        remainingKrw: remainingKrw,
+        consumedPercent: percent,
+        currency: 'KRW',
+      },
+      pace: creditPaceInfo,
     },
     state: stateInfo,
-    pace: paceInfo,
+    primaryPercent: percent,
     fetchedAt: now.toISOString(),
   });
 
@@ -343,7 +388,7 @@ function updateTrayMenu() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'images', 'state_0_30.jpg')).resize({ width: 16, height: 16 });
+  const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'images', 'cat1.jpg')).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
   tray.setToolTip('실시간 Claude 사용량 위젯');
   updateTrayMenu();
@@ -379,7 +424,10 @@ app.on('window-all-closed', () => {
 });
 
 // IPC 핸들러
-ipcMain.on('request-refresh', () => updateUsage());
+ipcMain.on('request-refresh', () => {
+  isSimulationActive = false;
+  updateUsage();
+});
 ipcMain.on('close-app', () => app.quit());
 ipcMain.on('set-simulation', (_event, percent) => simulateUsage(percent));
 ipcMain.on('reset-position', () => {

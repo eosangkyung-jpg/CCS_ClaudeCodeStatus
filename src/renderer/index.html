@@ -10,11 +10,32 @@
     <!-- 호버 시 나타나는 말풍선 카드 -->
     <div class="speech-bubble" id="speechBubble">
       <div class="bubble-header">
-        <span class="status-badge" id="statusBadge">로딩 중...</span>
-        <div class="bubble-actions">
-          <button class="action-btn" id="refreshBtn" title="새로고침">🔄</button>
-          <button class="action-btn" id="settingsBtn" title="알림 설정">⚙️</button>
+        <div class="status-indicator-group">
+          <span class="status-dot" id="statusDot"></span>
+          <span class="status-badge" id="statusBadge">로딩 중...</span>
         </div>
+        <div class="bubble-actions">
+          <button class="action-btn" id="refreshBtn" title="새로고침">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+              <path d="M16 21h5v-5"/>
+            </svg>
+          </button>
+          <button class="action-btn" id="settingsBtn" title="알림 설정">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 상위 프로바이더 선택 탭 바 ([Claude 플랜] vs [Gemini 크레딧]) -->
+      <div class="provider-tab-bar">
+        <button class="provider-tab-btn active" id="tabClaude">Claude</button>
+        <button class="provider-tab-btn" id="tabGemini">Gemini</button>
       </div>
 
       <!-- 알림 설정 패널 (구간별 상세 매트릭스 설정) -->
@@ -61,31 +82,63 @@
       </div>
 
       <div class="bubble-body" id="normalBubbleBody">
-        <!-- 5시간 세션 게이지 -->
-        <div class="gauge-section">
-          <div class="usage-row">
-            <div class="usage-label" id="sessionLabel">5시간 세션</div>
-            <div class="usage-val" id="sessionVal">--%</div>
+        <!-- 1. Claude 플랜 토큰 사용량 섹션 -->
+        <div class="provider-section" id="claudeSection">
+          <div class="gauge-section main-metric">
+            <div class="usage-row">
+              <div class="usage-label" id="sessionLabel">5시간 세션 소진율</div>
+              <div class="usage-val" id="sessionVal">--%</div>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="sessionBar" style="width: 0%;"></div>
+            </div>
+            <div class="metric-meta-row">
+              <span id="paceBadge">적정 페이스 유지</span>
+              <span class="reset-time" id="resetTime">리셋 확인 중...</span>
+            </div>
           </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill" id="sessionBar" style="width: 0%;"></div>
+
+          <div class="sub-inset-card">
+            <div class="usage-row sub-row">
+              <div class="usage-label">7일 주간 누적 한도</div>
+              <div class="usage-val sub-val" id="weeklyVal">--%</div>
+            </div>
+            <div class="progress-bar-bg sub-bar-bg">
+              <div class="progress-bar-fill" id="weeklyBar" style="width: 0%;"></div>
+            </div>
+            <div class="metric-meta-row sub-meta">
+              <span>주간 누적 안정</span>
+              <span id="weeklyResetTime">주간 리셋 정보 확인 중...</span>
+            </div>
           </div>
-          <div class="pace-row" id="paceRow" style="display: none;">
-            <span class="pace-badge" id="paceBadge">🟢 적정 페이스</span>
-          </div>
-          <div class="reset-time" id="resetTime">리셋 정보 확인 중...</div>
         </div>
 
-        <!-- 7일 주간 한도 게이지 (신규 막대그래프) -->
-        <div class="gauge-section" id="weeklySection">
-          <div class="usage-row">
-            <div class="usage-label">7일 주간 한도</div>
-            <div class="usage-val" id="weeklyVal">--%</div>
+        <!-- 2. Google Cloud Gemini 크레딧 섹션 -->
+        <div class="provider-section" id="geminiSection" style="display: none;">
+          <div class="gauge-section main-metric">
+            <div class="usage-row">
+              <div class="usage-label">체험 크레딧 소진율</div>
+              <div class="usage-val" id="geminiPercentVal">0%</div>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="geminiBar" style="width: 0%;"></div>
+            </div>
+            <div class="metric-meta-row">
+              <span id="geminiPaceBadge">여유로운 소진</span>
+              <span id="geminiSpendDetail">₩ 0 소진</span>
+            </div>
           </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill" id="weeklyBar" style="width: 0%;"></div>
+
+          <div class="sub-inset-card">
+            <div class="usage-row sub-row">
+              <div class="usage-label">남은 무료 크레딧</div>
+              <div class="usage-val sub-val" id="geminiRemainingVal">₩ 402,977</div>
+            </div>
+            <div class="metric-meta-row sub-meta">
+              <span>프로젝트: gmp-demo-project</span>
+              <span>전체: ₩ 402,977</span>
+            </div>
           </div>
-          <div class="reset-time" id="weeklyResetTime">주간 리셋 정보 확인 중...</div>
         </div>
 
         <div class="quote-text" id="quoteText">데이터를 불러오는 중입니다...</div>
@@ -93,8 +146,8 @@
 
       <!-- 친절한 에러/로그인 가이드 카드 -->
       <div class="error-card" id="errorCard" style="display: none;">
-        <div class="error-title" id="errorTitle">⚠️ 로그인이 필요합니다</div>
-        <div class="error-desc" id="errorDesc">터미널에서 `claude`를 실행하여 로그인해주세요.</div>
+        <div class="error-title" id="errorTitle">⚠️ Google Cloud 인증 필요</div>
+        <div class="error-desc" id="errorDesc">터미널에서 `gcloud auth login`을 실행해주세요.</div>
         <div class="error-actions">
           <button class="error-retry-btn" id="errorRetryBtn">🔄 다시 확인하기</button>
         </div>
@@ -115,6 +168,9 @@
 
     <!-- 캐릭터 영역 (드래그 가능) -->
     <div class="character-wrapper" id="characterWrapper">
+      <!-- 고양이 사진 다시 섞기(셔플) 버튼 -->
+      <button class="shuffle-btn" id="shuffleBtn" title="고양이 사진 다시 섞기">🎲</button>
+
       <!-- 트레이 숨기기 (-) 버튼 -->
       <button class="minimize-btn" id="minimizeBtn" title="트레이로 숨기기">−</button>
 
@@ -125,7 +181,7 @@
 
       <!-- 캐릭터 본체 -->
       <div class="character-card" id="characterCard">
-        <img id="characterImg" src="../assets/images/state_0_30.jpg" alt="캐릭터 상태">
+        <img id="characterImg" src="../assets/images/cat1.jpg" alt="캐릭터 상태">
       </div>
 
       <!-- 작은 퍼센트 뱃지 -->
@@ -133,6 +189,7 @@
     </div>
   </div>
 
+  <script src="stateImages.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>
