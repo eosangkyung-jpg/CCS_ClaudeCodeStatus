@@ -5,7 +5,45 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "test:poc": "node poc_fetch_usage.mjs"
+    "test:poc": "node poc_fetch_usage.mjs",
+    "dist": "electron-builder --win",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.kimbap.sideproj-status-widget",
+    "productName": "CatStatusWidget",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "src/assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "고양이 상태 위젯"
+    }
   },
   "keywords": [
     "claude",
@@ -16,6 +54,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^45.2.1"
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0"
   }
 }

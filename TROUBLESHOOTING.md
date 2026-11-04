@@ -282,3 +282,15 @@
 
 
 
+
+---
+
+### 19. [2026-11-04] Windows 설치형/포터블 앱 패키징 (electron-builder)
+- **현상**:
+  - 터미널을 열어 npm start를 실행하지 않고, 바탕화면 앱처럼 더블 클릭으로 실행할 수 있는 독립 실행 파일(.exe)이 필요함.
+- **해결**:
+  - electron-builder를 도입하고 package.json에 빌드 스크립트(dist, dist:portable) 추가.
+  - 고양이 사진(cat1.jpg)을 파싱하여 256x256 표준 Windows 아이콘(icon.ico) 생성 및 적용.
+  - NSIS 인스톨러 방식과 함께, 설치 과정 없이 바로 실행되는 Portable 타겟(dist:portable)을 우선 빌드하여 제공.
+- **교훈 (작업 규칙)**:
+  - 유틸리티 앱 배포 시 포터블(Portable) 포맷을 함께 제공하면 사용자 진입장벽을 크게 낮출 수 있음.
