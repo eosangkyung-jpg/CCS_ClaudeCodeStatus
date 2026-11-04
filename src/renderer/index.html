@@ -52,6 +52,14 @@
             <input type="checkbox" id="settingOpenAtLogin">
             <span>💻 부팅 시 자동 시작</span>
           </label>
+          <div class="scale-row">
+            <span id="uiScaleLabel">글자 크기</span>
+            <div class="scale-options" role="radiogroup" aria-labelledby="uiScaleLabel">
+              <button class="scale-btn" role="radio" data-scale="1" aria-checked="true">100%</button>
+              <button class="scale-btn" role="radio" data-scale="1.25" aria-checked="false">125%</button>
+              <button class="scale-btn" role="radio" data-scale="1.5" aria-checked="false">150%</button>
+            </div>
+          </div>
         </div>
 
         <!-- 구간별 개별 설정 테이블 -->
@@ -170,7 +178,10 @@
 
         <!-- 100% 소진 시 사진 위에 뜨는 디지털 리셋 카운트다운 (Claude 전용) -->
         <div class="countdown-badge" id="countdownBadge" style="display: none;">
-          <span id="countdownTimer">00:00:00</span>
+          <span class="countdown-digits">
+            <span class="countdown-ghost" aria-hidden="true">88:88:88</span>
+            <span id="countdownTimer">00:00:00</span>
+          </span>
         </div>
       </div>
 

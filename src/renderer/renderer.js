@@ -635,9 +635,41 @@ if (window.widgetAPI) {
     });
   }
 
+  // 글자 크기: 화면 확대 + 창 크기를 같은 비율로 변경 (main 프로세스가 처리)
+  const scaleButtons = [...document.querySelectorAll('.scale-btn')];
+  function renderUiScale(scale, maxScale) {
+    scaleButtons.forEach((btn) => {
+      const value = Number(btn.dataset.scale);
+      const selected = value === scale;
+      btn.setAttribute('aria-checked', String(selected));
+      btn.tabIndex = selected ? 0 : -1;
+      btn.disabled = value > maxScale;
+      btn.title = btn.disabled ? '이 화면에서는 창이 다 들어가지 않아 선택할 수 없어요' : '';
+    });
+  }
+  scaleButtons.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.widgetAPI.setUiScale(Number(btn.dataset.scale));
+    });
+  });
+  // 라디오 그룹: 좌우 방향키로 이동·선택
+  const scaleGroup = document.querySelector('.scale-options');
+  if (scaleGroup) {
+    scaleGroup.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const enabled = scaleButtons.filter((b) => !b.disabled);
+      const i = enabled.indexOf(document.activeElement);
+      const next = enabled[(i + (e.key === 'ArrowRight' ? 1 : -1) + enabled.length) % enabled.length];
+      if (next) { next.focus(); next.click(); }
+    });
+  }
+
   if (window.widgetAPI.onSettingsUpdated) {
     window.widgetAPI.onSettingsUpdated((settings) => {
       if (settingOpenAtLogin) settingOpenAtLogin.checked = !!settings.openAtLogin;
+      renderUiScale(settings.uiScale || 1, settings.maxUiScale || 1.5);
 
       renderMatrix(settings.alertRules);
     });

@@ -21,8 +21,14 @@ const DEFAULT_ALERT_RULES = {
   state_reset: { bubble: true, toast: true },
 };
 
+// 기본 창 크기(DIP). 글자 크기 옵션은 화면 확대와 창 크기를 같은 비율로 키운다.
+const BASE_WIDTH = 340;
+const BASE_HEIGHT = 540;
+const UI_SCALES = [1, 1.25, 1.5];
+
 const DEFAULT_SETTINGS = {
   notificationsPaused: false,
+  uiScale: 1,
   tierCatMap: null, // 위젯이 배정한 구간별 고양이 사진 (renderer에서 동기화)
   openAtLogin: false,
   bubbleDuration: 3500,
@@ -45,10 +51,25 @@ function migrateAlertRules(saved) {
   return rules;
 }
 
+// 현재 모니터 작업 영역에 창이 다 들어가는 최대 글자 크기
+function getMaxUiScale() {
+  const display = mainWindow && !mainWindow.isDestroyed()
+    ? screen.getDisplayMatching(mainWindow.getBounds())
+    : screen.getPrimaryDisplay();
+  const { workArea } = display;
+  const fits = UI_SCALES.filter((s) => BASE_WIDTH * s <= workArea.width && BASE_HEIGHT * s <= workArea.height);
+  return fits.length ? fits[fits.length - 1] : 1;
+}
+
+function settingsPayload() {
+  return { ...currentSettings, maxUiScale: getMaxUiScale() };
+}
+
 function loadSettings() {
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
-      const saved = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+      // 메모장 등이 붙이는 UTF-8 BOM 제거 (없으면 JSON.parse가 실패해 설정이 기본값으로 덮어써짐)
+      const saved = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8').replace(/^﻿/, ''));
       currentSettings = {
         ...DEFAULT_SETTINGS,
         ...saved,
@@ -91,7 +112,7 @@ function saveSettings(settings) {
 
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(currentSettings, null, 2), 'utf8');
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('settings-updated', currentSettings);
+      mainWindow.webContents.send('settings-updated', settingsPayload());
     }
     updateTrayMenu();
   } catch (err) {
@@ -154,6 +175,37 @@ function notifyStateChange(stateInfo, percent, isSimulation = false) {
   lastStateId = stateInfo.id;
 }
 
+function getWindowSize(scale) {
+  return { width: Math.round(BASE_WIDTH * scale), height: Math.round(BASE_HEIGHT * scale) };
+}
+
+// 글자 크기 변경: 창 아래쪽 가운데를 기준으로 크기를 바꾸고(캐릭터 위치 유지), 화면 밖으로 나가지 않게 보정
+let scaleAnchor = null;      // 글자 크기 변경의 기준점 (사용자가 옮길 때만 갱신)
+let isApplyingScale = false; // 크기 변경으로 생긴 'moved'는 기준점 갱신에서 제외
+
+function applyUiScale(requested) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  let scale = UI_SCALES.includes(requested) ? requested : 1;
+  scale = Math.min(scale, getMaxUiScale());
+
+  const old = mainWindow.getBounds();
+  // 기준점: 사용자가 마지막으로 옮긴 위치의 '아래쪽 가운데'. 화면 밖 보정으로 밀린 위치가 아니라
+  // 원래 기준점에서 계산하므로 150% → 100%로 돌아오면 원래 자리로 돌아온다.
+  if (!scaleAnchor) scaleAnchor = { cx: old.x + old.width / 2, bottom: old.y + old.height };
+  const { width, height } = getWindowSize(scale);
+  const { workArea } = screen.getDisplayMatching(old);
+  let x = Math.round(scaleAnchor.cx - width / 2);
+  let y = Math.round(scaleAnchor.bottom - height);
+  x = Math.min(Math.max(x, workArea.x), workArea.x + workArea.width - width);
+  y = Math.min(Math.max(y, workArea.y), workArea.y + workArea.height - height);
+
+  isApplyingScale = true;
+  mainWindow.setBounds({ x, y, width, height });
+  mainWindow.webContents.setZoomFactor(scale);
+  saveSettings({ uiScale: scale, x, y });
+  setTimeout(() => { isApplyingScale = false; }, 300);
+}
+
 function getDefaultPosition(width, height) {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { workArea } = primaryDisplay;
@@ -164,10 +216,9 @@ function getDefaultPosition(width, height) {
 }
 
 function createWindow() {
-  const windowWidth = 340;
-  const windowHeight = 540;
-
   const savedSettings = loadSettings();
+  const initialScale = UI_SCALES.includes(savedSettings.uiScale) ? savedSettings.uiScale : 1;
+  const { width: windowWidth, height: windowHeight } = getWindowSize(initialScale);
   const defaultPos = getDefaultPosition(windowWidth, windowHeight);
 
   mainWindow = new BrowserWindow({
@@ -190,15 +241,23 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
+  // 저장된 글자 크기를 화면 확대에 반영 (새로고침 때마다 다시 적용)
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents.setZoomFactor(currentSettings.uiScale || 1);
+  });
+
   mainWindow.on('moved', () => {
     if (!mainWindow) return;
     const [x, y] = mainWindow.getPosition();
+    if (!isApplyingScale) scaleAnchor = null; // 사용자가 직접 옮기면 다음 크기 변경은 새 위치 기준
     saveSettings({ x, y });
   });
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    mainWindow.webContents.send('settings-updated', currentSettings);
+    // 저장된 글자 크기가 이 모니터에 안 들어가면 맞는 크기로 낮춤
+    if ((currentSettings.uiScale || 1) > getMaxUiScale()) applyUiScale(getMaxUiScale());
+    mainWindow.webContents.send('settings-updated', settingsPayload());
     updateUsage();
   });
 }
@@ -330,7 +389,7 @@ function updateTrayMenu() {
       label: '📍 위치 초기화',
       click: () => {
         if (mainWindow) {
-          const defaultPos = getDefaultPosition(280, 420);
+          const defaultPos = getDefaultPosition(...mainWindow.getSize());
           mainWindow.setPosition(defaultPos.x, defaultPos.y);
           saveSettings(defaultPos);
         }
@@ -433,9 +492,13 @@ ipcMain.on('request-refresh', () => {
 });
 ipcMain.on('close-app', () => app.quit());
 ipcMain.on('set-simulation', (_event, percent) => simulateUsage(percent));
+ipcMain.on('set-ui-scale', (_event, scale) => {
+  applyUiScale(Number(scale));
+});
+
 ipcMain.on('reset-position', () => {
   if (mainWindow) {
-    const defaultPos = getDefaultPosition(280, 420);
+    const defaultPos = getDefaultPosition(...mainWindow.getSize());
     mainWindow.setPosition(defaultPos.x, defaultPos.y);
     saveSettings(defaultPos);
   }

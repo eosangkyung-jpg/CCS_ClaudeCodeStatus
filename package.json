@@ -1,7 +1,7 @@
 {
   "name": "sideproj-status-widget",
   "version": "0.1.0",
-  "description": "실시간 Claude 사용량 인물 밈 플로팅 캐릭터 위젯",
+  "description": "실시간 Claude·Gemini 사용량을 고양이 사진으로 보여 주는 플로팅 위젯",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
