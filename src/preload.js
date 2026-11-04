@@ -33,5 +33,9 @@ contextBridge.exposeInMainWorld('widgetAPI', {
   },
   hideWindow: () => {
     ipcRenderer.send('hide-window');
+  },
+  // 위젯의 구간별 고양이 사진 배정을 본체에 알려 시스템 알림 사진과 일치시킴
+  syncTierCatMap: (map) => {
+    ipcRenderer.send('sync-tier-cat-map', map);
   }
 });

@@ -1,3 +1,26 @@
+/* ─── 색 토큰 (위젯은 어두운 단일 테마) ─── */
+:root {
+  --surface-0: #0d0e14;       /* 말풍선 바탕 */
+  --surface-1: #12141c;       /* 안쪽 카드·설정 패널 */
+  --surface-2: #141620;       /* 탭 바 */
+  --surface-hover: #171922;
+  --surface-active: #222634;
+  --float-bg: rgba(13, 14, 20, 0.88); /* 사진 위 칩·원형 버튼 */
+  --line: #1c1f2a;
+  --white: #ffffff;
+  --text-1: #f1f5f9;
+  --text-2: #e2e8f0;
+  --text-3: #cbd5e1;
+  --text-muted: #94a3b8;      /* 라벨 (7.5:1) */
+  --text-subtle: #7c8aa0;     /* 보조 줄 (5.1:1 이상) */
+  --text-faint: #64748b;      /* 아이콘 전용 (텍스트에 쓰지 않음) */
+  --accent: #3b82f6;
+  --accent-strong: #2563eb;   /* 흰 글자 배경용 (5.2:1) */
+  --danger: #ef4444;
+  --warn-strong: #b45309;     /* 흰 기호 배경용 */
+  --focus-ring: #93c5fd;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -29,24 +52,23 @@ html, body {
 .speech-bubble {
   position: relative;
   width: 264px;
-  background: #0d0e14;
-  border: 1px solid #1c1f2a;
+  background: var(--surface-0);
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 14px 16px;
-  color: #f1f5f9;
+  color: var(--text-1);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  /* visibility:hidden을 쓰지 않음: 키보드 Tab으로 숨은 버튼에 닿으면 focusin으로 말풍선을 연다 */
   opacity: 0;
-  visibility: hidden;
   transform: translateY(8px) scale(0.96);
   pointer-events: none;
-  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.2s, border-color 0.3s ease;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease;
   z-index: 10;
 }
 
 /* 마우스 호버 시 말풍선 노출 */
 .speech-bubble.active {
   opacity: 1;
-  visibility: visible;
   transform: translateY(0) scale(1);
   pointer-events: auto;
 }
@@ -68,14 +90,14 @@ html, body {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--white);
   transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .status-badge {
   font-size: 11px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--text-2);
   letter-spacing: -0.2px;
 }
 
@@ -89,7 +111,7 @@ html, body {
   height: 24px;
   background: transparent;
   border: none;
-  color: #64748b;
+  color: var(--text-faint);
   border-radius: 6px;
   cursor: pointer;
   display: flex;
@@ -99,8 +121,8 @@ html, body {
 }
 
 .action-btn:hover {
-  background: #171922;
-  color: #f8fafc;
+  background: var(--surface-hover);
+  color: var(--text-1);
 }
 
 .action-btn svg {
@@ -112,8 +134,8 @@ html, body {
 /* 상단 프로바이더 모드 탭 바: 세련된 알약형 세그먼트 */
 .provider-tab-bar {
   display: flex;
-  background: #141620;
-  border: 1px solid #1f2330;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   padding: 2.5px;
   border-radius: 8px;
   margin-bottom: 12px;
@@ -124,7 +146,7 @@ html, body {
   flex: 1;
   border: none;
   background: transparent;
-  color: #64748b;
+  color: var(--text-subtle);
   font-size: 11px;
   font-weight: 500;
   padding: 4.5px 0;
@@ -135,27 +157,27 @@ html, body {
 }
 
 .provider-tab-btn:hover {
-  color: #cbd5e1;
+  color: var(--text-3);
 }
 
 .provider-tab-btn.active {
-  background: #222634;
-  color: #ffffff;
+  background: var(--surface-active);
+  color: var(--white);
   font-weight: 700;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .provider-tab-btn.active#tabClaude,
 .provider-tab-btn.active#tabGemini {
-  background: #222634;
-  color: #ffffff;
+  background: var(--surface-active);
+  color: var(--white);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* 알림 설정 패널 */
 .settings-panel {
-  background: rgba(15, 23, 42, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 10px 12px;
   margin-bottom: 8px;
@@ -168,75 +190,99 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin: -10px -12px 8px;
+  padding: 10px 12px 6px;
+  position: sticky;
+  top: -10px;
+  z-index: 1;
+  background: var(--surface-1);
 }
 
 .settings-title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
-  color: #f1f5f9;
+  color: var(--text-1);
   letter-spacing: -0.2px;
 }
 
 .settings-close-btn {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 12px;
   padding: 2px 4px;
 }
-.settings-close-btn:hover { color: #fff; }
+.settings-close-btn:hover { color: var(--white); }
 
-.preset-row {
+.matrix-caption {
   display: flex;
-  gap: 4px;
-  margin-bottom: 8px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-weight: 700;
 }
 
 .preset-btn {
-  flex: 1;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #cbd5e1;
-  font-size: 9px;
-  padding: 4px 2px;
+  color: var(--text-3);
+  font-size: 11px;
+  padding: 4px 10px;
   border-radius: 5px;
+  white-space: nowrap;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .preset-btn:hover {
-  background: #3b82f6;
-  color: #fff;
-  border-color: #3b82f6;
+  background: var(--accent-strong);
+  color: var(--white);
+  border-color: var(--accent-strong);
 }
 
 .master-toggles {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 2px;
   padding-bottom: 6px;
   margin-bottom: 6px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 10px;
-  color: #94a3b8;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .matrix-table {
   width: 100%;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .matrix-header {
   display: grid;
-  grid-template-columns: 1fr 45px 45px;
-  color: #94a3b8;
+  grid-template-columns: 1fr 58px 58px;
+  color: var(--text-muted);
   font-weight: 700;
   padding-bottom: 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   text-align: center;
 }
-.matrix-header span:first-child { text-align: left; }
+.matrix-header > span:first-child { text-align: left; align-self: end; }
+
+/* 열 제목 = 열 전체 켜기/끄기 체크박스 */
+.col-toggle {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.col-toggle input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--accent);
+}
 
 .matrix-body {
   display: flex;
@@ -247,7 +293,7 @@ html, body {
 
 .matrix-row {
   display: grid;
-  grid-template-columns: 1fr 45px 45px;
+  grid-template-columns: 1fr 58px 58px;
   align-items: center;
   padding: 3px 2px;
   border-radius: 4px;
@@ -259,8 +305,8 @@ html, body {
 }
 
 .matrix-row .tier-name {
-  color: #f1f5f9;
-  font-size: 10px;
+  color: var(--text-1);
+  font-size: 11px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -269,21 +315,21 @@ html, body {
 .matrix-row input[type="checkbox"] {
   justify-self: center;
   cursor: pointer;
-  accent-color: #3b82f6;
+  accent-color: var(--accent);
 }
 
 .setting-item {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 4px;
+  padding: 2px 0;
   cursor: pointer;
-  color: #e2e8f0;
+  color: var(--text-2);
 }
 
 .setting-item input[type="checkbox"] {
   cursor: pointer;
-  accent-color: #3b82f6;
+  accent-color: var(--accent);
 }
 
 /* 일시적 자동 팝업 알림 시 살짝 통통 튀는 바운스 효과 */
@@ -321,13 +367,13 @@ html, body {
 .usage-label {
   font-size: 11.5px;
   font-weight: 500;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .usage-val {
   font-size: 28px;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--white);
   line-height: 1;
   letter-spacing: -0.6px;
   transition: color 0.3s ease;
@@ -336,7 +382,7 @@ html, body {
 .progress-bar-bg {
   width: 100%;
   height: 3.5px;
-  background: #1c1f2b;
+  background: var(--line);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -344,7 +390,7 @@ html, body {
 .progress-bar-fill {
   height: 100%;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--white);
   transition: width 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -352,15 +398,15 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 10.5px;
-  color: #64748b;
+  font-size: 11px;
+  color: var(--text-subtle);
   margin-top: 1px;
 }
 
 /* 서브 인셋 카드 */
 .sub-inset-card {
-  background: #12141c;
-  border: 1px solid #1c1f2a;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 9px 11px;
   display: flex;
@@ -375,7 +421,7 @@ html, body {
 .sub-val {
   font-size: 12px !important;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text-1);
 }
 
 .sub-bar-bg {
@@ -383,16 +429,16 @@ html, body {
 }
 
 .sub-meta {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .quote-text {
   margin-top: 10px;
-  font-size: 10.5px;
+  font-size: 11px;
   line-height: 1.4;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-style: italic;
-  border-top: 1px solid #161822;
+  border-top: 1px solid var(--line);
   padding-top: 8px;
   border-left: none;
   background: transparent;
@@ -413,14 +459,14 @@ html, body {
 
 .sim-label {
   font-size: 9px;
-  color: #64748b;
+  color: var(--text-faint);
   margin-right: 2px;
 }
 
 .sim-btn {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 9px;
   padding: 2px 4px;
   border-radius: 4px;
@@ -429,9 +475,9 @@ html, body {
 }
 
 .sim-btn:hover {
-  background: #3b82f6;
-  color: #fff;
-  border-color: #3b82f6;
+  background: var(--accent-strong);
+  color: var(--white);
+  border-color: var(--accent-strong);
 }
 
 /* 캐릭터 래퍼 (드래그 가능) */
@@ -454,7 +500,7 @@ html, body {
   width: 156px;
   height: 156px;
   border-radius: 26px;
-  background: #ffffff;
+  background: var(--white);
   overflow: hidden;
   box-shadow: none;
   border: 3px solid rgba(255, 255, 255, 0.9);
@@ -483,34 +529,45 @@ html, body {
 
 .character-card.shake {
   animation: shake 0.35s infinite ease-in-out;
-  border-color: #ef4444;
+  border-color: var(--danger);
 }
 
 /* 100% 소진 시 흑백 */
 .character-card.exhausted {
   filter: grayscale(100%) contrast(1.1);
-  border-color: #64748b;
+  border-color: var(--text-faint);
 }
 
-/* 100% 카운트다운 배지 */
+/* 100% 리셋 카운트다운: 사진 한가운데 흰색 디지털 숫자 */
+/* DSEG7 Classic (SIL OFL 1.1) — 라이선스: src/assets/fonts/DSEG-LICENSE.txt */
+@font-face {
+  font-family: "DSEG7 Classic";
+  src: url("../assets/fonts/DSEG7Classic-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+}
+
+.character-card {
+  position: relative;
+}
+
 .countdown-badge {
   position: absolute;
-  top: -10px;
-  background: #ef4444;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-  padding: 4px 10px;
-  border-radius: 12px;
-  box-shadow: none;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--white);
+  font-family: "DSEG7 Classic", Consolas, Menlo, monospace;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 0 8px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
   z-index: 5;
-  letter-spacing: 0.5px;
-  animation: bounce 1s infinite alternate;
-}
-
-@keyframes bounce {
-  from { transform: translateY(0); }
-  to { transform: translateY(-4px); }
 }
 
 /* 오른쪽 아래 퍼센트 칩 */
@@ -518,13 +575,13 @@ html, body {
   position: absolute;
   bottom: 0px;
   right: 0px;
-  background: rgba(15, 23, 42, 0.88);
-  color: #f8fafc;
+  background: var(--float-bg);
+  color: var(--text-1);
   font-size: 11px;
   font-weight: 800;
   padding: 3px 8px;
   border-radius: 10px;
-  border: 2px solid #ffffff;
+  border: 2px solid var(--white);
   box-shadow: none;
   pointer-events: none;
 }
@@ -536,11 +593,11 @@ html, body {
   left: 0px;
   width: 24px;
   height: 24px;
-  background: rgba(15, 23, 42, 0.85);
+  background: var(--float-bg);
   backdrop-filter: blur(8px);
   border: 1.5px solid rgba(255, 255, 255, 0.85);
   border-radius: 50%;
-  color: #f1f5f9;
+  color: var(--text-1);
   font-size: 12px;
   display: flex;
   align-items: center;
@@ -554,9 +611,9 @@ html, body {
 }
 
 .shuffle-btn:hover {
-  background: #3b82f6;
+  background: var(--accent-strong);
   transform: scale(1.15) rotate(45deg);
-  border-color: #ffffff;
+  border-color: var(--white);
 }
 
 .shuffle-btn:active {
@@ -568,13 +625,13 @@ html, body {
   position: absolute;
   top: 0px;
   right: 0px;
-  width: 22px;
-  height: 22px;
-  background: rgba(15, 23, 42, 0.82);
+  width: 24px;
+  height: 24px;
+  background: var(--float-bg);
   backdrop-filter: blur(8px);
   border: 1.5px solid rgba(255, 255, 255, 0.8);
   border-radius: 50%;
-  color: #f1f5f9;
+  color: var(--text-1);
   font-size: 14px;
   font-weight: 700;
   display: flex;
@@ -588,11 +645,83 @@ html, body {
 }
 
 .minimize-btn:hover {
-  background: #f59e0b;
+  background: var(--warn-strong);
   transform: scale(1.12);
-  border-color: #ffffff;
+  border-color: var(--white);
 }
 
 .minimize-btn:active {
   transform: scale(0.92);
+}
+
+/* ─── 설정 패널 스크롤바: 기본 흰 스크롤바 대신 테마색 ─── */
+.settings-panel {
+  scrollbar-gutter: stable;
+}
+.settings-panel::-webkit-scrollbar {
+  width: 6px;
+}
+.settings-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.settings-panel::-webkit-scrollbar-thumb {
+  background: #2a2f3e;
+  border-radius: 999px;
+}
+.settings-panel::-webkit-scrollbar-thumb:hover {
+  background: #3a4153;
+}
+
+/* ─── 키보드 포커스 표시 ─── */
+button:focus-visible,
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.shuffle-btn:focus-visible,
+.minimize-btn:focus-visible {
+  outline-offset: 1px;
+}
+
+/* ─── 움직임 줄이기 설정 대응 ─── */
+/* 흔들림·튕김 대신 정지 상태로 같은 정보를 전달: 95% 이상은 빨간 테두리 + 굵은 테두리로 유지 */
+@media (prefers-reduced-motion: reduce) {
+  .character-card.shake {
+    animation: none;
+    border-width: 4px;
+  }
+  .speech-bubble,
+  .speech-bubble.auto-popup {
+    animation: none;
+    transition: opacity 0.15s linear, visibility 0.15s;
+    transform: none !important;
+  }
+  .shuffle-btn:hover,
+  .shuffle-btn:active,
+  .minimize-btn:hover,
+  .minimize-btn:active {
+    transform: none;
+  }
+}
+
+/* 화면에는 안 보이고 화면 낭독기만 읽는 영역 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 구간 표: 칸 전체를 눌러도 체크되도록 label로 감쌈 */
+.matrix-cell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 24px;
+  cursor: pointer;
 }

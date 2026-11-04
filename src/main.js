@@ -22,8 +22,8 @@ const DEFAULT_ALERT_RULES = {
 };
 
 const DEFAULT_SETTINGS = {
-  notifyBubble: true,
-  notifyToast: true,
+  notificationsPaused: false,
+  tierCatMap: null, // 위젯이 배정한 구간별 고양이 사진 (renderer에서 동기화)
   openAtLogin: false,
   bubbleDuration: 3500,
   alertRules: DEFAULT_ALERT_RULES,
@@ -33,6 +33,18 @@ let currentSettings = { ...DEFAULT_SETTINGS };
 
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'sideproj-widget-settings.json');
 
+// 구버전 설정 호환: 마스터 스위치가 꺼져 있던 열은 모든 구간을 끈 상태로 옮겨
+// 사용자가 체감하는 동작(알림이 오지 않음)을 그대로 유지한다.
+function migrateAlertRules(saved) {
+  const rules = {};
+  Object.keys(DEFAULT_ALERT_RULES).forEach((key) => {
+    rules[key] = { ...DEFAULT_ALERT_RULES[key], ...((saved.alertRules || {})[key] || {}) };
+    if (saved.notifyBubble === false) rules[key].bubble = false;
+    if (saved.notifyToast === false) rules[key].toast = false;
+  });
+  return rules;
+}
+
 function loadSettings() {
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
@@ -40,11 +52,11 @@ function loadSettings() {
       currentSettings = {
         ...DEFAULT_SETTINGS,
         ...saved,
-        alertRules: {
-          ...DEFAULT_ALERT_RULES,
-          ...(saved.alertRules || {}),
-        },
+        alertRules: migrateAlertRules(saved),
       };
+      // 구버전 마스터 스위치(notifyBubble/notifyToast)는 구간별 규칙으로 흡수되었으므로 제거
+      delete currentSettings.notifyBubble;
+      delete currentSettings.notifyToast;
       return currentSettings;
     }
   } catch (err) {
@@ -101,10 +113,12 @@ function notifyStateChange(stateInfo, percent, isSimulation = false) {
   }
 
   const rule = currentSettings.alertRules?.[ruleKey] ?? { bubble: true, toast: true };
+  const paused = !!currentSettings.notificationsPaused;
 
   let title = `[Gemini 크레딧] ${stateInfo.label} (${percent}% 소진)`;
   let body = stateInfo.quote;
-  let iconFile = stateInfo.iconFile || (stateInfo.id + '.jpg');
+  // 위젯과 같은 사진을 쓰기 위해 위젯이 동기화한 배정을 우선 사용 (없으면 서비스 기본값)
+  let iconFile = currentSettings.tierCatMap?.[stateInfo.id] || stateInfo.iconFile || (stateInfo.id + '.jpg');
 
   if (isReset) {
     title = '🎉 [Gemini 크레딧] 크레딧 갱신 완료!';
@@ -116,7 +130,7 @@ function notifyStateChange(stateInfo, percent, isSimulation = false) {
   }
 
   // 1. 캐릭터 위 일시적 말풍선 팝업
-  if (currentSettings.notifyBubble && rule.bubble && mainWindow && !mainWindow.isDestroyed()) {
+  if (!paused && rule.bubble && mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('trigger-bubble-alert', {
       duration: currentSettings.bubbleDuration || 3500,
       title,
@@ -126,7 +140,7 @@ function notifyStateChange(stateInfo, percent, isSimulation = false) {
   }
 
   // 2. Windows 네이티브 토스트 알림
-  if (currentSettings.notifyToast && rule.toast && Notification.isSupported()) {
+  if (!paused && rule.toast && Notification.isSupported()) {
     const iconPath = path.join(__dirname, 'assets', 'images', iconFile);
     const notification = new Notification({
       title,
@@ -330,21 +344,11 @@ function updateTrayMenu() {
       click: (item) => saveSettings({ openAtLogin: item.checked }),
     },
     {
-      label: '🔔 마스터 알림 스위치',
-      submenu: [
-        {
-          label: '💬 캐릭터 말풍선 팝업 전체',
-          type: 'checkbox',
-          checked: currentSettings.notifyBubble,
-          click: (item) => saveSettings({ notifyBubble: item.checked }),
-        },
-        {
-          label: '🪟 Windows 토스트 알림 전체',
-          type: 'checkbox',
-          checked: currentSettings.notifyToast,
-          click: (item) => saveSettings({ notifyToast: item.checked }),
-        },
-      ],
+      // 구간별 설정은 그대로 두고 모든 알림만 잠시 멈춤 (다시 체크 해제하면 즉시 재개)
+      label: '알림 일시 중지',
+      type: 'checkbox',
+      checked: !!currentSettings.notificationsPaused,
+      click: (item) => saveSettings({ notificationsPaused: item.checked }),
     },
     {
       label: '🧪 테스트 시뮬레이션',
@@ -456,6 +460,17 @@ ipcMain.on('set-view-mode', (_event, mode) => {
   saveSettings({ viewMode: mode });
   updateUsage();
 });
+const TIER_IDS = ['state_0_30', 'state_30_60', 'state_60_80', 'state_80_90', 'state_90_94', 'state_95_100'];
+
+ipcMain.on('sync-tier-cat-map', (_event, map) => {
+  if (!map || typeof map !== 'object') return;
+  const valid = TIER_IDS.every((id) => typeof map[id] === 'string' && /^cat\d+\.jpg$/.test(map[id]));
+  if (!valid) return;
+  const clean = Object.fromEntries(TIER_IDS.map((id) => [id, map[id]]));
+  if (JSON.stringify(clean) === JSON.stringify(currentSettings.tierCatMap)) return;
+  saveSettings({ tierCatMap: clean });
+});
+
 ipcMain.on('update-settings', (_event, newSettings) => {
   saveSettings(newSettings);
 });

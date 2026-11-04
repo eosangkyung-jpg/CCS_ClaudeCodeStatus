@@ -17,6 +17,7 @@ function getGcloudAccessToken() {
   }
 }
 
+// 참고: image/iconFile은 대비용 기본값. 실제 사진은 위젯이 무작위 배정한 값(settings.tierCatMap)을 main.js가 우선 사용함.
 function resolveGeminiState(consumedPercent) {
   const p = Math.round(consumedPercent);
 

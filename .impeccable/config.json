@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "src/renderer/index.html"
+        ],
+        "createdAt": "2026-11-04T12:37:23.699Z",
+        "reason": "Claude: .character-card is a full-bleed photo frame; the image intentionally touches the border (no text inside)"
+      }
+    ]
+  }
+}

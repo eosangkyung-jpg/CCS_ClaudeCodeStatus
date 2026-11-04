@@ -13,8 +13,6 @@ const refreshBtn = document.getElementById('refreshBtn');
 const minimizeBtn = document.getElementById('minimizeBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsPanel = document.getElementById('settingsPanel');
-const settingNotifyBubble = document.getElementById('settingNotifyBubble');
-const settingNotifyToast = document.getElementById('settingNotifyToast');
 const settingOpenAtLogin = document.getElementById('settingOpenAtLogin');
 const paceRow = document.getElementById('paceRow');
 const paceBadge = document.getElementById('paceBadge');
@@ -23,6 +21,85 @@ const errorCard = document.getElementById('errorCard');
 const errorTitle = document.getElementById('errorTitle');
 const errorDesc = document.getElementById('errorDesc');
 const errorRetryBtn = document.getElementById('errorRetryBtn');
+
+const tabClaude = document.getElementById('tabClaude');
+const tabGemini = document.getElementById('tabGemini');
+const claudeSection = document.getElementById('claudeSection');
+const geminiSection = document.getElementById('geminiSection');
+const weeklyBar = document.getElementById('weeklyBar');
+const weeklyResetTime = document.getElementById('weeklyResetTime');
+const weeklyStatus = document.getElementById('weeklyStatus');
+
+// 주간 한도 상태 문구: 세션 구간(CLAUDE.md 2.2)과 같은 경계값을 사용
+function getWeeklyStatusText(percent) {
+  if (percent >= 100) return '주간 한도 소진';
+  if (percent >= 95) return '주간 한도 임박';
+  if (percent >= 80) return '주간 위험 구간';
+  if (percent >= 60) return '주간 주의 구간';
+  if (percent >= 30) return '주간 누적 안정';
+  return '주간 누적 여유';
+}
+
+let activeProvider = localStorage.getItem('sideproj_active_provider') || 'claude';
+let lastUsagePayload = null;
+let currentResetTimestamp = null;
+let countdownInterval = null;
+let lastUsageFailed = false;
+
+const providerTabBar = document.querySelector('.provider-tab-bar');
+
+// 막대(role=progressbar)의 현재 값을 화면 낭독기에 전달
+function setBarValue(bar, percent) {
+  const track = bar && bar.parentElement;
+  if (!track || track.getAttribute('role') !== 'progressbar') return;
+  track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(100, Math.round(percent)))));
+}
+
+function isSettingsOpen() {
+  return !!settingsPanel && settingsPanel.style.display !== 'none';
+}
+
+// 말풍선 본문 영역은 [설정 패널 | 사용량 본문 | 에러 카드] 중 하나만 보인다.
+// 창 높이(540px)가 고정이라 둘 이상 동시에 보이면 말풍선 상단이 창 밖으로 잘린다.
+function syncBubbleBodyVisibility() {
+  const settingsOpen = isSettingsOpen();
+  // 알림 설정은 프로바이더 공통이므로 설정 중에는 Claude/Gemini 탭도 숨겨 높이를 확보
+  if (providerTabBar) providerTabBar.style.display = settingsOpen ? 'none' : '';
+  if (normalBubbleBody) normalBubbleBody.style.display = settingsOpen || lastUsageFailed ? 'none' : 'block';
+  if (errorCard) errorCard.style.display = !settingsOpen && lastUsageFailed ? 'flex' : 'none';
+}
+
+function setSettingsOpen(open) {
+  if (!settingsPanel) return;
+  settingsPanel.style.display = open ? 'block' : 'none';
+  if (settingsBtn) settingsBtn.setAttribute('aria-expanded', String(open));
+  syncBubbleBodyVisibility();
+}
+
+function updateProviderTabs() {
+  if (tabClaude && tabGemini) {
+    const isGemini = activeProvider === 'gemini';
+    tabGemini.setAttribute('aria-selected', String(isGemini));
+    tabClaude.setAttribute('aria-selected', String(!isGemini));
+    tabGemini.tabIndex = isGemini ? 0 : -1;
+    tabClaude.tabIndex = isGemini ? -1 : 0;
+    if (activeProvider === 'gemini') {
+      tabGemini.classList.add('active');
+      tabClaude.classList.remove('active');
+      if (geminiSection) geminiSection.style.display = 'flex';
+      if (claudeSection) claudeSection.style.display = 'none';
+    } else {
+      tabClaude.classList.add('active');
+      tabGemini.classList.remove('active');
+      if (claudeSection) claudeSection.style.display = 'flex';
+      if (geminiSection) geminiSection.style.display = 'none';
+    }
+  }
+
+  if (lastUsagePayload) {
+    applyActiveProviderState(lastUsagePayload);
+  }
+}
 
 function formatRemainingTime(isoString) {
   if (!isoString) return '리셋 시각 정보 없음';
@@ -149,7 +226,15 @@ function initializeTierCatMap() {
   return map;
 }
 
+// 시스템 알림(main 프로세스)도 같은 사진을 쓰도록 배정 정보를 본체에 전달
+function syncTierCatMapToMain(map) {
+  if (window.widgetAPI && window.widgetAPI.syncTierCatMap) {
+    window.widgetAPI.syncTierCatMap(map);
+  }
+}
+
 let currentTierCatMap = initializeTierCatMap();
+syncTierCatMapToMain(currentTierCatMap);
 
 function shuffleCatMap() {
   const STORAGE_KEY = 'sideproj_tier_cat_map';
@@ -162,6 +247,7 @@ function shuffleCatMap() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
   } catch (e) {}
   currentTierCatMap = map;
+  syncTierCatMapToMain(map);
 
   if (lastUsagePayload) {
     applyActiveProviderState(lastUsagePayload);
@@ -274,13 +360,18 @@ function applyActiveProviderState(data) {
 
   if (p >= 100) {
     characterCard.classList.add('exhausted');
-    countdownBadge.style.display = 'block';
+  } else {
+    characterCard.classList.remove('exhausted');
+  }
+
+  // 리셋 카운트다운은 Claude 전용 (Gemini 무료 체험 크레딧은 리셋 개념 없음)
+  if (p >= 100 && activeProvider === 'claude') {
+    countdownBadge.style.display = 'flex';
     if (!countdownInterval) {
       updateCountdownText();
       countdownInterval = setInterval(updateCountdownText, 1000);
     }
   } else {
-    characterCard.classList.remove('exhausted');
     countdownBadge.style.display = 'none';
     if (countdownInterval) {
       clearInterval(countdownInterval);
@@ -297,8 +388,8 @@ function renderUsage(data) {
     statusBadge.style.background = '#ef4444';
     percentChip.textContent = '⚠️';
 
-    normalBubbleBody.style.display = 'none';
-    errorCard.style.display = 'flex';
+    lastUsageFailed = true;
+    syncBubbleBodyVisibility();
 
     errorTitle.textContent = data.errorMessage || '데이터를 불러오지 못했습니다.';
     errorDesc.textContent = data.errorGuide || 'Claude 및 Google Cloud 인증 상태를 확인해주세요.';
@@ -308,8 +399,8 @@ function renderUsage(data) {
     return;
   }
 
-  normalBubbleBody.style.display = 'block';
-  errorCard.style.display = 'none';
+  lastUsageFailed = false;
+  syncBubbleBodyVisibility();
 
   // 1. Claude 플랜 섹션 렌더링
   const paceBadge = document.getElementById('paceBadge');
@@ -320,6 +411,7 @@ function renderUsage(data) {
 
     sessionVal.textContent = `${sessionP}%`;
     sessionBar.style.width = `${Math.min(100, sessionP)}%`;
+    setBarValue(sessionBar, sessionP);
 
     const theme = interpolatePinkRed(sessionP);
     sessionVal.style.color = theme.textColor;
@@ -331,8 +423,10 @@ function renderUsage(data) {
     const weeklyP = Math.round(c.weekly.percent);
     weeklyVal.textContent = `${weeklyP}%`;
     weeklyBar.style.width = `${Math.min(100, weeklyP)}%`;
+    setBarValue(weeklyBar, weeklyP);
     weeklyBar.style.background = 'linear-gradient(90deg, #f8fafc, #fda4af)';
     weeklyResetTime.textContent = formatWeeklyResetTime(c.weekly.resetsAt);
+    if (weeklyStatus) weeklyStatus.textContent = getWeeklyStatusText(weeklyP);
 
     if (c.pace && paceBadge) {
       paceBadge.textContent = c.pace.badge;
@@ -340,10 +434,13 @@ function renderUsage(data) {
   } else {
     sessionVal.textContent = '미로그인';
     sessionBar.style.width = '0%';
+    setBarValue(sessionBar, 0);
     resetTime.textContent = '터미널에서 `claude` 로그인 필요';
     weeklyVal.textContent = '--%';
     weeklyBar.style.width = '0%';
+    setBarValue(weeklyBar, 0);
     weeklyResetTime.textContent = '주간 한도 조회 대기';
+    if (weeklyStatus) weeklyStatus.textContent = '주간 한도 정보 없음';
   }
 
   // 2. Gemini 크레딧 섹션 렌더링
@@ -363,6 +460,7 @@ function renderUsage(data) {
       geminiPercentVal.style.color = gTheme.textColor;
       if (geminiBar) {
         geminiBar.style.width = `${Math.min(100, gPercent)}%`;
+        setBarValue(geminiBar, gPercent);
         geminiBar.style.background = gTheme.barGradient;
         geminiBar.style.boxShadow = gTheme.glow;
       }
@@ -426,9 +524,9 @@ if (window.widgetAPI) {
 
   const settingsDoneBtn = document.getElementById('settingsDoneBtn');
   const matrixRows = document.getElementById('matrixRows');
-  const presetAll = document.getElementById('presetAll');
   const presetDanger = document.getElementById('presetDanger');
-  const presetNone = document.getElementById('presetNone');
+  const colBubble = document.getElementById('colBubble');
+  const colToast = document.getElementById('colToast');
 
   const TIERS = [
     { id: 'state_0_30', label: '0~30% 여유' },
@@ -455,11 +553,12 @@ if (window.widgetAPI) {
 
       row.innerHTML = `
         <span class="tier-name">${tier.label}</span>
-        <input type="checkbox" data-tier="${tier.id}" data-type="bubble" ${rule.bubble ? 'checked' : ''}>
-        <input type="checkbox" data-tier="${tier.id}" data-type="toast" ${rule.toast ? 'checked' : ''}>
+        <label class="matrix-cell"><input type="checkbox" data-tier="${tier.id}" data-type="bubble" aria-label="${tier.label} 말풍선 알림" ${rule.bubble ? 'checked' : ''}></label>
+        <label class="matrix-cell"><input type="checkbox" data-tier="${tier.id}" data-type="toast" aria-label="${tier.label} 시스템 알림" ${rule.toast ? 'checked' : ''}></label>
       `;
       matrixRows.appendChild(row);
     });
+    syncColumnToggles();
 
     matrixRows.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
       cb.addEventListener('change', () => {
@@ -467,19 +566,38 @@ if (window.widgetAPI) {
         const type = cb.getAttribute('data-type');
         if (!currentAlertRules[tier]) currentAlertRules[tier] = { bubble: true, toast: true };
         currentAlertRules[tier][type] = cb.checked;
+        syncColumnToggles();
         window.widgetAPI.updateSettings({ alertRules: currentAlertRules });
       });
     });
   }
 
+  // 열 제목 체크박스: 열 전체 켜기/끄기. 일부만 켜져 있으면 '일부 선택(–)' 표시
+  function syncColumnToggles() {
+    [[colBubble, 'bubble'], [colToast, 'toast']].forEach(([box, type]) => {
+      if (!box) return;
+      const onCount = TIERS.filter((t) => (currentAlertRules[t.id] || { [type]: true })[type]).length;
+      box.checked = onCount === TIERS.length;
+      box.indeterminate = onCount > 0 && onCount < TIERS.length;
+    });
+  }
+
+  function setColumn(type, on) {
+    TIERS.forEach((tier) => {
+      const prev = currentAlertRules[tier.id] || { bubble: true, toast: true };
+      currentAlertRules[tier.id] = { ...prev, [type]: on };
+    });
+    renderMatrix(currentAlertRules);
+    window.widgetAPI.updateSettings({ alertRules: currentAlertRules });
+  }
+
+  if (colBubble) colBubble.addEventListener('change', () => setColumn('bubble', colBubble.checked));
+  if (colToast) colToast.addEventListener('change', () => setColumn('toast', colToast.checked));
+
   function applyPreset(presetType) {
     TIERS.forEach((tier) => {
       if (!currentAlertRules[tier.id]) currentAlertRules[tier.id] = { bubble: true, toast: true };
-      if (presetType === 'all') {
-        currentAlertRules[tier.id] = { bubble: true, toast: true };
-      } else if (presetType === 'none') {
-        currentAlertRules[tier.id] = { bubble: false, toast: false };
-      } else if (presetType === 'danger') {
+      if (presetType === 'danger') {
         const isDanger = ['state_80_90', 'state_90_94', 'state_95_99', 'state_100', 'state_reset'].includes(tier.id);
         currentAlertRules[tier.id] = { bubble: isDanger, toast: isDanger };
       }
@@ -488,14 +606,11 @@ if (window.widgetAPI) {
     window.widgetAPI.updateSettings({ alertRules: currentAlertRules });
   }
 
-  if (presetAll) presetAll.addEventListener('click', () => applyPreset('all'));
   if (presetDanger) presetDanger.addEventListener('click', () => applyPreset('danger'));
-  if (presetNone) presetNone.addEventListener('click', () => applyPreset('none'));
   if (settingsDoneBtn && settingsPanel) {
     settingsDoneBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      settingsPanel.style.display = 'none';
-      if (normalBubbleBody) normalBubbleBody.style.display = 'block';
+      setSettingsOpen(false);
     });
   }
 
@@ -503,26 +618,7 @@ if (window.widgetAPI) {
   if (settingsBtn && settingsPanel) {
     settingsBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const isHidden = settingsPanel.style.display === 'none';
-      if (isHidden) {
-        settingsPanel.style.display = 'block';
-        if (normalBubbleBody) normalBubbleBody.style.display = 'none';
-      } else {
-        settingsPanel.style.display = 'none';
-        if (normalBubbleBody) normalBubbleBody.style.display = 'block';
-      }
-    });
-  }
-
-  if (settingNotifyBubble) {
-    settingNotifyBubble.addEventListener('change', () => {
-      window.widgetAPI.updateSettings({ notifyBubble: settingNotifyBubble.checked });
-    });
-  }
-
-  if (settingNotifyToast) {
-    settingNotifyToast.addEventListener('change', () => {
-      window.widgetAPI.updateSettings({ notifyToast: settingNotifyToast.checked });
+      setSettingsOpen(!isSettingsOpen());
     });
   }
 
@@ -541,8 +637,6 @@ if (window.widgetAPI) {
 
   if (window.widgetAPI.onSettingsUpdated) {
     window.widgetAPI.onSettingsUpdated((settings) => {
-      if (settingNotifyBubble) settingNotifyBubble.checked = settings.notifyBubble;
-      if (settingNotifyToast) settingNotifyToast.checked = settings.notifyToast;
       if (settingOpenAtLogin) settingOpenAtLogin.checked = !!settings.openAtLogin;
 
       renderMatrix(settings.alertRules);
@@ -556,10 +650,12 @@ if (window.widgetAPI) {
       if (autoPopupTimer) clearTimeout(autoPopupTimer);
       speechBubble.classList.add('auto-popup');
       speechBubble.classList.add('active');
+      const srAnnounce = document.getElementById('srAnnounce');
+      if (srAnnounce) srAnnounce.textContent = [info.title, info.body].filter(Boolean).join('. ');
 
       autoPopupTimer = setTimeout(() => {
         speechBubble.classList.remove('auto-popup');
-        if (!isHoveringCharacter && !isHoveringBubble) {
+        if (!isHoveringCharacter && !isHoveringBubble && !isFocusInside) {
           speechBubble.classList.remove('active');
         }
       }, info.duration || 3500);
@@ -634,10 +730,11 @@ if (window.widgetAPI) {
   const speechBubble = document.getElementById('speechBubble');
   let isHoveringCharacter = false;
   let isHoveringBubble = false;
+  let isFocusInside = false;
   let hoverTimeout = null;
 
   function updateBubbleState() {
-    if (isHoveringCharacter || isHoveringBubble) {
+    if (isHoveringCharacter || isHoveringBubble || isFocusInside) {
       if (hoverTimeout) clearTimeout(hoverTimeout);
       speechBubble.classList.add('active');
     } else {
@@ -666,6 +763,44 @@ if (window.widgetAPI) {
     isHoveringBubble = false;
     updateBubbleState();
   });
+
+  // 키보드 접근: 위젯 안 요소에 포커스가 들어오면 말풍선 열기, 나가면 닫기
+  const widgetContainer = document.querySelector('.widget-container');
+  widgetContainer.addEventListener('focusin', () => {
+    isFocusInside = true;
+    updateBubbleState();
+  });
+  widgetContainer.addEventListener('focusout', (e) => {
+    if (e.relatedTarget && widgetContainer.contains(e.relatedTarget)) return;
+    isFocusInside = false;
+    updateBubbleState();
+  });
+
+  // Esc: 설정 화면이 열려 있으면 설정만 닫고, 아니면 말풍선을 닫음
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (isSettingsOpen()) {
+      setSettingsOpen(false);
+      if (settingsBtn) settingsBtn.focus();
+      return;
+    }
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    isFocusInside = false;
+    isHoveringBubble = false;
+    isHoveringCharacter = false;
+    updateBubbleState();
+  });
+
+  // Claude/Gemini 탭: 좌우 방향키로 이동
+  if (providerTabBar && tabClaude && tabGemini) {
+    providerTabBar.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const next = document.activeElement === tabClaude ? tabGemini : tabClaude;
+      next.focus();
+      next.click();
+    });
+  }
 
   // 빈 투명 영역 클릭 관통 (Click-through) 처리
   window.addEventListener('mousemove', (e) => {

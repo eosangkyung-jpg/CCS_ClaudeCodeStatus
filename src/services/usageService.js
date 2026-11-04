@@ -27,6 +27,7 @@ function readAccessToken() {
   throw new Error('자격 증명 파일에 유효한 accessToken이 없습니다.');
 }
 
+// 참고: image/iconFile은 대비용 기본값. 실제 사진은 위젯이 무작위 배정한 값(settings.tierCatMap)을 main.js가 우선 사용함.
 function resolveState(sessionPercent) {
   const p = Math.round(sessionPercent);
 
