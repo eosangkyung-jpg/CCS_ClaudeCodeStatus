@@ -488,7 +488,18 @@ html, body {
   overflow: hidden;
   background: #bfbfbf;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
-  transition: filter 0.3s ease;
+  transition: filter 0.3s ease, transform 0.15s ease-out;
+}
+
+/* 마우스 클릭 시 톡 튀는 젤리 펄스 효과 */
+@keyframes clickPulse {
+  0% { transform: scale(0.92); }
+  50% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+.character-card.click-pulse {
+  animation: clickPulse 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .character-card img {

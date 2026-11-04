@@ -862,18 +862,207 @@ if (window.widgetAPI) {
 
   // Esc: 설정 화면이 열려 있으면 설정만 닫고, 아니면 말풍선을 닫음
   window.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    if (isSettingsOpen()) {
-      setSettingsOpen(false);
-      if (settingsBtn) settingsBtn.focus();
+    // 텍스트 입력 중일 때는 데모 단축키 무시
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+
+    if (e.key === 'Escape') {
+      if (isSettingsOpen()) {
+        setSettingsOpen(false);
+        if (settingsBtn) settingsBtn.focus();
+        return;
+      }
+      if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+      isFocusInside = false;
+      isHoveringBubble = false;
+      isHoveringCharacter = false;
+      updateBubbleState();
       return;
     }
-    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
-    isFocusInside = false;
-    isHoveringBubble = false;
-    isHoveringCharacter = false;
-    updateBubbleState();
+
+    // [시연 영상 촬영용 데모 단축키]
+    const key = e.key.toUpperCase();
+
+    // 1~6: 소진율 단계 즉시 전환
+    const percentMap = {
+      '1': 15,  // 0~30% 여유
+      '2': 45,  // 30~60% 안정
+      '3': 70,  // 60~80% 조금 빠름
+      '4': 85,  // 80~90% 빠름
+      '5': 96,  // 95~99% 위기 (화면 진동 연출)
+      '6': 100, // 100% 한도 소진 (흑백 영정 모드)
+    };
+
+    if (percentMap[key] !== undefined) {
+      const p = percentMap[key];
+      if (window.widgetAPI && window.widgetAPI.setSimulation) {
+        window.widgetAPI.setSimulation(p);
+      }
+      renderUsage({
+        success: true,
+        claude: {
+          success: true,
+          session: { percent: p, resetsAt: new Date(Date.now() + 1000 * 60 * 90).toISOString() },
+          weekly: { percent: Math.min(100, p + 10), resetsAt: new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString() },
+        },
+      });
+      return;
+    }
+
+    // W: 작업 중 (코딩/타자 모드)
+    if (key === 'W') {
+      setActivity('working');
+      return;
+    }
+
+    // E: 허락 대기 중 (Waiting)
+    if (key === 'E') {
+      setActivity('waiting');
+      return;
+    }
+
+    // I: 일반/대기 상태로 복귀 (Idle)
+    if (key === 'I') {
+      setActivity('idle');
+      return;
+    }
+
+    // R: 고양이 사진 셔플
+    if (key === 'R') {
+      shuffleCatMap();
+      return;
+    }
+
+    // B: 말풍선 카드 수동 토글 (게이지 보여주기용)
+    if (key === 'B') {
+      const isCurrentlyActive = speechBubble.classList.contains('active');
+      if (isCurrentlyActive) {
+        isHoveringCharacter = false;
+        isHoveringBubble = false;
+        isFocusInside = false;
+        speechBubble.classList.remove('active');
+      } else {
+        speechBubble.classList.add('active');
+      }
+      return;
+    }
+
+    // A: 시연용 자동 쇼케이스 재생 (Auto-Demo Mode)
+    if (key === 'A') {
+      runAutoDemoShowcase();
+      return;
+    }
   });
+
+  // [시연 영상 전용] 자동 쇼케이스 시나리오 실행 함수 (15초 숏폼 완벽 최적화)
+  let autoDemoTimer = null;
+  function runAutoDemoShowcase() {
+    if (autoDemoTimer) {
+      clearTimeout(autoDemoTimer);
+      autoDemoTimer = null;
+    }
+
+    const triggerClickPulse = () => {
+      characterCard.classList.remove('click-pulse');
+      void characterCard.offsetWidth; // 리플로우 강제 트리거
+      characterCard.classList.add('click-pulse');
+      shuffleCatMap();
+    };
+
+    const setSim = (percent) => {
+      if (window.widgetAPI && window.widgetAPI.setSimulation) {
+        window.widgetAPI.setSimulation(percent);
+      }
+      renderUsage({
+        success: true,
+        claude: {
+          success: true,
+          session: { percent, resetsAt: new Date(Date.now() + 1000 * 60 * 90).toISOString() },
+          weekly: { percent: Math.min(100, percent + 10), resetsAt: new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString() },
+        },
+      });
+    };
+
+    const steps = [
+      // 0초: [평화로운 등장] 15% 여유 상태 (식빵 고양이 1)
+      {
+        delay: 0,
+        run: () => {
+          setActivity('idle');
+          setSim(15);
+          speechBubble.classList.remove('active');
+        },
+      },
+      // 1.5초: [클릭 1회차] 톡! 튀면서 다른 고양이 2로 전환
+      {
+        delay: 1500,
+        run: () => {
+          triggerClickPulse();
+        },
+      },
+      // 2.2초: [클릭 2회차] 톡! 튀면서 다른 고양이 3으로 연속 전환
+      {
+        delay: 2200,
+        run: () => {
+          triggerClickPulse();
+        },
+      },
+      // 2.9초: [클릭 3회차] 톡! 튀면서 다른 고양이 4로 연속 전환 (사진 변경 확실히 각인!)
+      {
+        delay: 2900,
+        run: () => {
+          triggerClickPulse();
+        },
+      },
+      // 4.2초: [코딩 작업 개시] 작업 모드 ON (열일 타자 고양이 + 회전 스피너)
+      {
+        delay: 4200,
+        run: () => {
+          setActivity('working');
+        },
+      },
+      // 6.5초: [게이지 오픈] 말풍선 카드 오픈 (세션 소진율 및 페이스 노출)
+      {
+        delay: 6500,
+        run: () => {
+          speechBubble.classList.add('active');
+        },
+      },
+      // 8.5초: [코딩 완료 후 순항] 50% 안정
+      {
+        delay: 8500,
+        run: () => {
+          setActivity('idle');
+          setSim(50);
+        },
+      },
+      // 10.5초: [과부하/위기 🔥] 96% 도달 (부들부들 shake 진동 + 멘붕 고양이)
+      {
+        delay: 10500,
+        run: () => {
+          setSim(96);
+        },
+      },
+      // 13.0초: [소진/영정 모드 🪦] 100% 도달 (흑백 + 영정 리본 + 리셋 카운트다운 타이머)
+      {
+        delay: 13000,
+        run: () => {
+          setSim(100);
+        },
+      },
+      // 15.5초: [15초 컷 종료 후 원복] 평화로운 20% 상태로 복귀
+      {
+        delay: 15500,
+        run: () => {
+          setSim(20);
+          speechBubble.classList.remove('active');
+        },
+      },
+    ];
+
+    steps.forEach((step) => {
+      setTimeout(step.run, step.delay);
+    });
+  }
 
   // 빈 투명 영역 클릭 관통 (Click-through) 처리
   window.addEventListener('mousemove', (e) => {
