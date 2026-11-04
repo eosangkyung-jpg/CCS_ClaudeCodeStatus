@@ -553,3 +553,18 @@
   - 문서: `CLAUDE.md` 2.1~2.4에서 Gemini 내용 삭제(조회 대상은 Claude 플랜만), 2.2 표를 단일 "상태 문구" 열로 정리. `RELEASE.md`의 Gemini 설정 안내 삭제.
 - **확인**: 실행 중 위젯에서 실제 사용량(34%, 주간 82% "주간 위험 구간") 표시, 탭 없음, 100% 시뮬레이션에서 흑백·카운트다운 표시, 설정 패널 정상 캡처 확인.
 - **참고**: TROUBLESHOOTING 1~33번의 Gemini 관련 기록은 당시 이력으로 그대로 둠.
+
+---
+
+### 35. [2026-11-04] GitHub push 거부: Initial commit에 포함된 node_modules(electron.exe 238MB)
+- **현상**: `git push` 시 `File node_modules/electron/dist/electron.exe is 238.22 MB; this exceeds GitHub's file size limit of 100.00 MB` 로 거부. 원격 저장소는 그때까지 비어 있었음(한 번도 push 성공한 적 없음).
+- **원인**: 최초 커밋(`Initial commit`)에 `node_modules` 전체(565개 파일)가 포함됨. 이후 `.gitignore`에 `node_modules/`를 넣었지만 이미 추적 중인 파일에는 적용되지 않음.
+- **해결**:
+  1. 현재 상태를 `backup-before-cleanup` 브랜치로 백업.
+  2. `git filter-branch --index-filter 'git rm -r -q --cached --ignore-unmatch node_modules' -- main feature/gemini-gcp-billing` 로 모든 커밋에서 `node_modules` 제거 (커밋 ID 전부 변경, 내용·메시지는 동일).
+  3. 기록 전환 시 Git이 더 이상 추적하지 않는 `node_modules` 파일 일부를 작업 폴더에서 삭제함(실행 중인 electron.exe 등은 잠겨서 남음) → 앱 종료 후 `npm install`로 복구, `electron --version` 정상 확인.
+  4. `main`, `feature/gemini-gcp-billing` push 성공.
+- **교훈 (작업 규칙)**:
+  - 새 저장소는 `.gitignore`를 먼저 만들고 첫 커밋할 것. 커밋 전 `git status`로 `node_modules`, `dist`가 없는지 확인.
+  - `filter-branch`처럼 기록을 다시 쓰는 작업은 앱을 끄고, 백업 브랜치를 만든 뒤 진행하고, 끝나면 `npm install`로 의존성을 다시 확인할 것.
+  - 백업 브랜치 `backup-before-cleanup`과 `refs/original/`은 로컬에만 있음. 새 기록이 문제없으면 삭제 가능(`git branch -D backup-before-cleanup`, `git update-ref -d refs/original/refs/heads/...`).
