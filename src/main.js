@@ -184,7 +184,6 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
     mainWindow.webContents.send('settings-updated', currentSettings);
     updateUsage();
   });
