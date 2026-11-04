@@ -68,7 +68,7 @@
       {
         "provider": "github",
         "owner": "eosangkyung-jpg",
-        "repo": "ccs-releases",
+        "repo": "CCS_ClaudeCodeStatus",
         "releaseType": "release"
       }
     ]

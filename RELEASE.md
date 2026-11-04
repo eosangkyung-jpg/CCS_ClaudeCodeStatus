@@ -10,19 +10,19 @@ GitHub Actions (.github/workflows/release.yml)
    ├─ windows-latest → CCS-Setup.exe
    └─ macos-latest   → CCS-mac.dmg (Intel + Apple Silicon 유니버설)
    ▼
-[공개] eosangkyung-jpg/ccs-releases          ← 설치 파일 + 다운로드 페이지만
+[공개] eosangkyung-jpg/CCS_ClaudeCodeStatus          ← 설치 파일 + 다운로드 페이지만
    ├─ Releases: 최신 설치 파일
-   └─ GitHub Pages: https://eosangkyung-jpg.github.io/ccs-releases/
+   └─ GitHub Pages: https://eosangkyung-jpg.github.io/CCS_ClaudeCodeStatus/
                     (접속한 OS에 맞는 파일을 골라 줌)
 ```
 
 ## 처음 한 번만 하는 설정
 
-1. **공개 저장소 만들기**: GitHub에서 `ccs-releases`라는 이름의 **Public** 저장소를 만든다 (README 체크).
-2. **다운로드 페이지 올리기**: 이 저장소의 `release-page/` 안 파일(`index.html`, `icon.png`)을 `ccs-releases` 저장소 루트에 올린다.
-3. **GitHub Pages 켜기**: `ccs-releases` → Settings → Pages → Source: `Deploy from a branch`, Branch: `main` / `(root)` → Save.
+1. **공개 저장소 만들기**: GitHub에서 `CCS_ClaudeCodeStatus`라는 이름의 **Public** 저장소를 만든다 (README 체크).
+2. **다운로드 페이지 올리기**: 이 저장소의 `release-page/` 안 파일(`index.html`, `icon.png`)을 `CCS_ClaudeCodeStatus` 저장소 루트에 올린다.
+3. **GitHub Pages 켜기**: `CCS_ClaudeCodeStatus` → Settings → Pages → Source: `Deploy from a branch`, Branch: `main` / `(root)` → Save.
 4. **토큰 만들기**: GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate
-   - Repository access: `Only select repositories` → `ccs-releases`
+   - Repository access: `Only select repositories` → `CCS_ClaudeCodeStatus`
    - Permissions → Repository permissions → **Contents: Read and write**
 5. **토큰 등록**: 코드 저장소 `sideproj_status` → Settings → Secrets and variables → Actions → New repository secret
    - Name: `RELEASES_TOKEN`, Secret: 4에서 만든 토큰
@@ -36,8 +36,8 @@ GitHub Actions (.github/workflows/release.yml)
    git push origin v0.2.0
    ```
 3. GitHub → Actions 탭에서 `Release` 작업이 끝날 때까지 기다린다 (약 5~10분).
-4. `ccs-releases` Releases에 `CCS-Setup.exe`, `CCS-mac.dmg`가 올라왔는지 확인.
-5. 친구들에게는 항상 같은 링크만 주면 된다: `https://eosangkyung-jpg.github.io/ccs-releases/`
+4. `CCS_ClaudeCodeStatus` Releases에 `CCS-Setup.exe`, `CCS-mac.dmg`가 올라왔는지 확인.
+5. 친구들에게는 항상 같은 링크만 주면 된다: `https://eosangkyung-jpg.github.io/CCS_ClaudeCodeStatus/`
 
 ## 로컬에서 직접 빌드 (확인용)
 

@@ -66,7 +66,7 @@
 
 - **비공개 엔드포인트.** 응답 형식 변경이나 차단 가능성이 있음. 실패 시 안내 문구와 빠른 업데이트 경로가 필요.
 - **호출 제한.** User-Agent를 꾸미지 않으면 더 엄격한 호출 제한을 받을 수 있음 (참고 앱 소스 주석 기준, 공식 확인 아님). 조회 주기와 재시도 정책으로 대응.
-- **배포.** 코드 저장소(`sideproj_status`)는 비공개, 설치 파일과 다운로드 페이지는 공개 저장소 `ccs-releases`에 둔다. `v*` 태그를 push하면 GitHub Actions가 Windows(`CCS-Setup.exe`)와 macOS 유니버설(`CCS-mac.dmg`)을 빌드해 올리고, 친구는 다운로드 페이지(GitHub Pages)에서 자기 OS 파일을 받는다. 절차는 `RELEASE.md`.
+- **배포.** 코드 저장소(`sideproj_status`)는 비공개, 설치 파일과 다운로드 페이지는 공개 저장소 `CCS_ClaudeCodeStatus`에 둔다. `v*` 태그를 push하면 GitHub Actions가 Windows(`CCS-Setup.exe`)와 macOS 유니버설(`CCS-mac.dmg`)을 빌드해 올리고, 친구는 다운로드 페이지(GitHub Pages)에서 자기 OS 파일을 받는다. 절차는 `RELEASE.md`.
   - 코드 서명이 없어 Windows는 첫 실행 시 "추가 정보 → 실행", macOS는 ad-hoc 서명이라 "우클릭 → 열기"(막히면 `xattr -cr`) 안내가 필요하다.
 
 ### 1.9 참고 자료 및 산출물
@@ -131,7 +131,7 @@
 - `ROADMAP.md`: 초기 기획부터 MVP 완성까지의 단계별 진행 순서 및 세부 체크리스트
 - `TROUBLESHOOTING.md`: 개발 과정에서 마주친 OS별 특성, 버그 원인 및 해결 방법 기록
 - `RELEASE.md`: 친구 배포 절차 (공개 릴리스 저장소, 토큰 설정, 태그로 새 버전 배포)
-- `release-page/`: 친구용 다운로드 페이지 원본 (`ccs-releases` 저장소 루트에 올려 GitHub Pages로 공개)
+- `release-page/`: 친구용 다운로드 페이지 원본 (`CCS_ClaudeCodeStatus` 저장소 루트에 올려 GitHub Pages로 공개)
 - `.github/workflows/release.yml`: 태그 push 시 Windows·macOS 설치 파일 자동 빌드·업로드
 - `ref_image/`: 캐릭터 비주얼 콘셉트 및 UI 스타일 참고용 레퍼런스 이미지 모음
 
