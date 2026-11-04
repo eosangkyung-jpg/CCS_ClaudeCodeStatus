@@ -60,8 +60,8 @@ function resolveState(sessionPercent) {
       id: 'state_0_30',
       label: '여유',
       badgeColor: '#10b981', // 초록
-      image: '../assets/images/cat1.jpg',
-      iconFile: 'cat1.jpg',
+      image: '../assets/images/cat4.jpg',
+      iconFile: 'cat4.jpg',
       quote: '토큰 넉넉해요! 뭐든 시켜주세요.',
       isOverLimit: false,
     };
@@ -70,28 +70,28 @@ function resolveState(sessionPercent) {
       id: 'state_30_60',
       label: '안정',
       badgeColor: '#3b82f6', // 파랑
-      image: '../assets/images/cat2.jpg',
-      iconFile: 'cat2.jpg',
+      image: '../assets/images/cat5.jpg',
+      iconFile: 'cat5.jpg',
       quote: '순항 중입니다. 페이스 적당해요.',
       isOverLimit: false,
     };
   } else if (p < 80) {
     return {
       id: 'state_60_80',
-      label: '고민',
+      label: '조금 빠름',
       badgeColor: '#f59e0b', // 주황
-      image: '../assets/images/cat3.jpg',
-      iconFile: 'cat3.jpg',
+      image: '../assets/images/cat11.jpg',
+      iconFile: 'cat11.jpg',
       quote: '절반을 훌쩍 넘었어요. 긴 프롬프트 주의!',
       isOverLimit: false,
     };
   } else if (p < 90) {
     return {
       id: 'state_80_90',
-      label: '기도',
+      label: '빠름',
       badgeColor: '#f97316', // 진한 주황
-      image: '../assets/images/cat4.jpg',
-      iconFile: 'cat4.jpg',
+      image: '../assets/images/cat6.jpg',
+      iconFile: 'cat6.jpg',
       quote: '간당간당합니다... 제발 리셋까지 버텨줘',
       isOverLimit: false,
     };
@@ -100,8 +100,8 @@ function resolveState(sessionPercent) {
       id: 'state_90_94',
       label: '멈춰!',
       badgeColor: '#ef4444', // 빨강
-      image: '../assets/images/cat5.jpg',
-      iconFile: 'cat5.jpg',
+      image: '../assets/images/cat9.jpg',
+      iconFile: 'cat9.jpg',
       quote: '진짜 마지막 경고! 지금 쏘면 끝장납니다!',
       isOverLimit: false,
     };
@@ -110,10 +110,10 @@ function resolveState(sessionPercent) {
     const isOver = p >= 100;
     return {
       id: 'state_95_100',
-      label: isOver ? '한도 소진' : '멘붕/위기',
+      label: isOver ? '소진' : '위기',
       badgeColor: '#8b5cf6', // 보라 / 위험
-      image: '../assets/images/cat6.jpg',
-      iconFile: 'cat6.jpg',
+      image: '../assets/images/cat1.jpg',
+      iconFile: 'cat1.jpg',
       quote: isOver ? '한도가 소진되었습니다. 쿨다운 대기 중...' : '95% 도달! 곧 뻗습니다!',
       isOverLimit: isOver,
     };

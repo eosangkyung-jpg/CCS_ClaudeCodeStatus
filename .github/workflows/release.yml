@@ -3,7 +3,7 @@
 # 공개 저장소 eosangkyung-jpg/CCS_ClaudeCodeStatus 의 Releases에 올린다. (코드 저장소는 비공개 유지)
 #
 # 필요한 저장소 Secret:
-#   RELEASES_TOKEN — CCS_ClaudeCodeStatus 저장소에 Contents 쓰기 권한이 있는 GitHub 토큰 (RELEASE.md 참고)
+#   RELEASES_TOKEN — CCS_ClaudeCodeStatus 저장소에 Contents 쓰기 권한이 있는 GitHub 토큰 (DEPLOYMENT.md 참고)
 
 name: Release
 

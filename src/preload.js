@@ -40,5 +40,12 @@ contextBridge.exposeInMainWorld('widgetAPI', {
   },
   setUiScale: (scale) => {
     ipcRenderer.send('set-ui-scale', scale);
-  }
+  },
+  // Claude Code 작업 상태: 'working' | 'waiting' | 'idle'
+  onActivityUpdated: (callback) => {
+    ipcRenderer.on('activity-updated', (_event, state) => callback(state));
+  },
+  setClaudeHooks: (enable) => ipcRenderer.invoke('set-claude-hooks', enable),
+  getPlacement: () => ipcRenderer.invoke('get-placement'),
+  setWindowFocus: (focus) => ipcRenderer.send('set-window-focus', focus)
 });

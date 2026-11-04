@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CCS 사진 조정</title>
+  <style>
+    :root {
+      --bg: #0d0e14;
+      --surface-1: #12141c;
+      --surface-2: #171a24;
+      --line: #232736;
+      --text-1: #f1f5f9;
+      --text-2: #cbd5e1;
+      --text-muted: #94a3b8;
+      --text-subtle: #7c8aa0;
+      --accent: #2563eb;
+      --accent-soft: rgba(37, 99, 235, 0.18);
+      --done: #22c55e;
+      --focus: #93c5fd;
+      --card: 150px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text-1); }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Malgun Gothic", "Segoe UI", sans-serif;
+      font-size: 14px;
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      overflow: hidden;
+    }
+    button, input { font: inherit; color: inherit; }
+    :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+    /* ── 왼쪽: 사진 목록 ── */
+    aside {
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .aside-head { padding: 18px 18px 12px; border-bottom: 1px solid var(--line); }
+    .aside-head h1 { font-size: 17px; letter-spacing: -0.01em; }
+    .progress { margin-top: 6px; color: var(--text-muted); font-size: 13px; }
+    .progress strong { color: var(--done); }
+    .list { overflow-y: auto; padding: 8px 10px 24px; scrollbar-width: thin; scrollbar-color: #2a2f3e transparent; }
+    .group-title {
+      margin: 16px 8px 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+    .group-title:first-child { margin-top: 6px; }
+    .thumbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .thumb {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 2px solid transparent;
+      background: var(--surface-2);
+      cursor: pointer;
+      padding: 0;
+    }
+    .thumb .frame { position: absolute; inset: 0; overflow: hidden; }
+    .thumb img { position: absolute; max-width: none; user-select: none; pointer-events: none; }
+    .thumb .num {
+      position: absolute; left: 3px; top: 3px;
+      font-size: 11px; font-weight: 700; line-height: 1;
+      padding: 2px 4px; border-radius: 4px;
+      background: rgba(0, 0, 0, 0.72); color: #fde68a;
+    }
+    .thumb .mark {
+      position: absolute; right: 3px; bottom: 3px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--done); color: #052e16;
+      font-size: 11px; font-weight: 800; line-height: 16px; text-align: center;
+      display: none;
+    }
+    .thumb.adjusted .mark { display: block; }
+    .thumb[aria-current="true"] { border-color: var(--accent); }
+
+    /* ── 오른쪽: 편집 ── */
+    main { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+    .topbar {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 16px 24px; border-bottom: 1px solid var(--line);
+    }
+    .title { font-size: 18px; font-weight: 700; }
+    .title small { display: block; font-size: 13px; font-weight: 500; color: var(--text-muted); margin-top: 2px; }
+    .spacer { flex: 1; }
+    .btn {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .btn:hover { border-color: #3a4153; background: #1d2130; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+    .btn.primary:hover { background: #1d4ed8; }
+
+    .stage {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 32px;
+      padding: 28px 24px;
+      align-items: start;
+    }
+    .previews { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .preview-label { font-size: 12px; color: var(--text-subtle); align-self: flex-start; }
+
+    /* 위젯 사원증과 같은 구조: 크림색 종이 위 13.3px 안쪽에 150px 정사각형 사진 칸 (둥근 모서리·테두리 없음) */
+    .wrapper { position: relative; width: 176.6px; height: 176.6px; transform-origin: top left; background: #f4ece3; border-radius: 2px; }
+    .wrapper.big { transform: scale(2); margin-bottom: 176.6px; margin-right: 176.6px; }
+    .card {
+      position: absolute; left: 13.3px; top: 13.3px;
+      width: var(--card); height: var(--card);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+      background: #bfbfbf;
+      cursor: grab;
+      touch-action: none;
+    }
+    .card.dragging { cursor: grabbing; }
+    .card img { position: absolute; max-width: none; user-select: none; pointer-events: none; }
+    .card.gray img { filter: grayscale(100%) contrast(1.1); }
+    .tint { position: absolute; inset: 0; background: #ef4444; mix-blend-mode: multiply; opacity: 0; pointer-events: none; }
+    .card.red .tint { opacity: 0.55; }
+    .guide { position: absolute; inset: 0; pointer-events: none; display: none; }
+    .guide::before, .guide::after { content: ""; position: absolute; background: rgba(255, 255, 255, 0.55); }
+    .guide::before { left: 33.33%; right: 33.33%; top: 0; bottom: 0; border-left: 1px dashed; border-right: 1px dashed; background: none; border-color: rgba(255,255,255,0.55); }
+    .guide::after { top: 33.33%; bottom: 33.33%; left: 0; right: 0; border-top: 1px dashed; border-bottom: 1px dashed; background: none; border-color: rgba(255,255,255,0.55); }
+    .card.show-guide .guide { display: block; }
+
+    .ov { pointer-events: none; }
+    .ov.hidden { display: none; }
+    /* 비닐 반사광: 위젯 사진 칸 위에 걸치는 옅은 빛 */
+    .ov-gloss {
+      position: absolute; left: 13.3px; top: 13.3px; width: var(--card); height: var(--card); z-index: 2;
+      background: linear-gradient(135deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0) 28%, rgba(255,255,255,0) 72%, rgba(255,255,255,0.18) 100%);
+    }
+    /* 작업 중 배지: 위젯처럼 사진 안 왼쪽 아래 (사진 칸에서 6px) */
+    .ov-badge {
+      position: absolute; left: 19.3px; bottom: 19.3px; z-index: 3;
+      display: inline-flex; align-items: center; gap: 5px;
+      box-sizing: border-box; height: 22px; line-height: 1;
+      padding: 0 9px 0 7px; border-radius: 999px;
+      background: rgba(13, 14, 20, 0.88); border: 1px solid rgba(255, 255, 255, 0.18);
+      font-size: 11px; font-weight: 700; color: #f1f5f9; white-space: nowrap;
+    }
+    .ov-badge b { color: #fb923c; font-weight: 400; }
+
+    /* 컨트롤 */
+    .panel {
+      background: var(--surface-1);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px 20px;
+      max-width: 460px;
+    }
+    .row { display: grid; grid-template-columns: 64px 1fr 76px; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .row label { color: var(--text-2); }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    input[type="number"] {
+      width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+      padding: 5px 8px; text-align: right; font-variant-numeric: tabular-nums;
+    }
+    .toggles { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 6px 0 16px; color: var(--text-2); }
+    .toggles label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .toggles input { accent-color: var(--accent); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .help {
+      margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line);
+      color: var(--text-subtle); font-size: 13px; line-height: 1.7;
+    }
+    kbd {
+      font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+      background: var(--bg); border: 1px solid var(--line); border-bottom-width: 2px;
+      border-radius: 4px; padding: 0 5px; color: var(--text-2);
+    }
+    .toast {
+      position: fixed; right: 20px; bottom: 20px;
+      background: #14532d; color: #dcfce7; border: 1px solid #166534;
+      padding: 10px 16px; border-radius: 10px; font-weight: 600;
+      opacity: 0; transform: translateY(8px); transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .missing { color: #fca5a5; font-size: 13px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <aside aria-label="사진 목록">
+    <div class="aside-head">
+      <h1>CCS 사진 조정</h1>
+      <p class="progress" id="progress"></p>
+    </div>
+    <div class="list" id="list"></div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div class="title" id="title">cat?<small id="subtitle"></small></div>
+      <div class="spacer"></div>
+      <button class="btn" id="prevBtn" title="이전 사진 ( [ )">← 이전</button>
+      <button class="btn" id="nextBtn" title="다음 사진 ( ] )">다음 →</button>
+      <button class="btn primary" id="saveBtn">결과 저장 (JSON)</button>
+    </div>
+
+    <div class="stage">
+      <div class="previews">
+        <span class="preview-label">실제 크기 (위젯 그대로)</span>
+        <div class="wrapper" id="wrap1"></div>
+        <span class="preview-label">2배 확대 (여기서 끌어서 조정)</span>
+        <div class="wrapper big" id="wrap2"></div>
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <label for="zoomRange">확대</label>
+          <input type="range" id="zoomRange" min="0.5" max="3" step="0.01">
+          <input type="number" id="zoomNum" min="0.5" max="3" step="0.01" aria-label="확대 배율">
+        </div>
+        <div class="row">
+          <label for="xRange">가로</label>
+          <input type="range" id="xRange" min="-200" max="200" step="1">
+          <input type="number" id="xNum" step="1" aria-label="가로 위치 (px)">
+        </div>
+        <div class="row">
+          <label for="yRange">세로</label>
+          <input type="range" id="yRange" min="-200" max="200" step="1">
+          <input type="number" id="yNum" step="1" aria-label="세로 위치 (px)">
+        </div>
+
+        <div class="toggles">
+          <label><input type="checkbox" id="tClamp" checked> 가장자리 자동 맞춤</label>
+          <label><input type="checkbox" id="tOverlay" checked> 비닐 반사광</label>
+          <label><input type="checkbox" id="tBadge"> 작업 중 배지</label>
+          <label><input type="checkbox" id="tGuide"> 3분할 안내선</label>
+          <label><input type="checkbox" id="tGray"> 흑백 (100%)</label>
+          <label><input type="checkbox" id="tRed"> 붉은 막</label>
+        </div>
+
+        <div class="actions">
+          <button class="btn" id="resetBtn">원래대로</button>
+          <button class="btn" id="importBtn">저장한 JSON 불러오기</button>
+          <input type="file" id="importFile" accept="application/json" hidden>
+        </div>
+
+        <div class="help">
+          <strong style="color:var(--text-2)">조작법</strong><br>
+          끌기: 위치 이동 · 휠: 확대/축소<br>
+          <b>가장자리 자동 맞춤</b>이 켜져 있으면 사진 끝이 틀 밖으로 들어오지 않아 빈 공간이 생기지 않아요. 여백을 두고 작게 넣고 싶을 때만 꺼 주세요.<br>
+          <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> 1px 이동 (<kbd>Shift</kbd> 누르면 10px)<br>
+          <kbd>+</kbd> / <kbd>-</kbd> 확대·축소 · <kbd>[</kbd> / <kbd>]</kbd> 이전·다음 사진 · <kbd>0</kbd> 원래대로<br>
+          조정 내용은 이 브라우저에 자동 저장됩니다. 다 끝나면 <b>결과 저장</b>을 눌러 JSON 파일을 받아 주세요.
+          <p class="missing" id="missing" hidden></p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // 위젯의 사진 풀 (src/renderer/renderer.js TIER_POOLS / WORKING_POOL 과 동일)
+    const GROUPS = [
+      ['여유 (0~29%)', [4, 10, 19, 23, 37, 38, 39, 52]],
+      ['안정 (30~59%)', [5, 15, 18, 31, 32, 33, 54]],
+      ['조금 빠름 (60~79%)', [11, 12, 24, 27, 28, 50, 51]],
+      ['빠름 (80~89%)', [6, 29, 30, 43, 46, 48, 55, 60]],
+      ['멈춰! (90~94%)', [9, 14, 17, 21, 22, 49]],
+      ['위기·소진 (95~100%)', [1, 2, 7, 8, 20, 25, 36, 40, 44, 45, 47, 57, 61]],
+      ['★ 작업 중 전용', [3, 13, 16, 26, 35, 41, 42, 53, 56, 58, 59]],
+    ];
+    const IMG_DIR = '../ref_image/';
+    const CARD = 150;            // 사원증 사진 칸 크기 (테두리 없음)
+    const INNER = CARD;          // 실제 사진 영역 = 사진 칸 전체
+    const STORE = 'ccs_photo_adjust_v1';
+    const ORDER = GROUPS.flatMap(([, ids]) => ids);
+    const groupOf = Object.fromEntries(GROUPS.flatMap(([name, ids]) => ids.map((i) => [i, name])));
+
+    let adjust = {};   // { "cat4.jpg": { zoom, x, y } }
+    try { adjust = JSON.parse(localStorage.getItem(STORE) || '{}'); } catch (e) {}
+    const natural = {}; // 원본 크기 캐시
+    let current = ORDER[0];
+
+    const $ = (id) => document.getElementById(id);
+    const file = (n) => `cat${n}.jpg`;
+    const get = (n) => adjust[file(n)] || { zoom: 1, x: 0, y: 0 };
+    const isAdjusted = (n) => { const a = adjust[file(n)]; return !!a && (a.zoom !== 1 || a.x !== 0 || a.y !== 0); };
+    const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(adjust)); } catch (e) {} };
+
+    // 기본 배치: 위젯과 같은 object-fit: cover (짧은 변을 틀에 맞춤). 그 위에 zoom·x·y 적용.
+    function layout(img, n, box) {
+      const nat = natural[n];
+      if (!nat) return;
+      const a = get(n);
+      const base = Math.max(box / nat.w, box / nat.h);
+      const s = base * a.zoom;
+      const w = nat.w * s, h = nat.h * s;
+      const k = box / INNER; // 썸네일은 비율만 맞춰 축소
+      img.style.width = w + 'px';
+      img.style.height = h + 'px';
+      img.style.left = (box - w) / 2 + a.x * k + 'px';
+      img.style.top = (box - h) / 2 + a.y * k + 'px';
+    }
+
+    function loadNatural(n) {
+      return new Promise((resolve) => {
+        if (natural[n]) return resolve(natural[n]);
+        const im = new Image();
+        im.onload = () => { natural[n] = { w: im.naturalWidth, h: im.naturalHeight }; resolve(natural[n]); };
+        im.onerror = () => resolve(null);
+        im.src = IMG_DIR + file(n);
+      });
+    }
+
+    // ── 목록 ──
+    const thumbEls = {};
+    function buildList() {
+      const list = $('list');
+      for (const [name, ids] of GROUPS) {
+        const t = document.createElement('div');
+        t.className = 'group-title';
+        t.textContent = `${name} · ${ids.length}장`;
+        list.appendChild(t);
+        const grid = document.createElement('div');
+        grid.className = 'thumbs';
+        for (const n of ids) {
+          const b = document.createElement('button');
+          b.className = 'thumb';
+          b.setAttribute('aria-label', `cat${n} (${name})`);
+          b.innerHTML = `<span class="frame"><img alt="" src="${IMG_DIR + file(n)}"></span><span class="num">${n}</span><span class="mark" aria-hidden="true">✓</span>`;
+          b.addEventListener('click', () => select(n));
+          grid.appendChild(b);
+          thumbEls[n] = b;
+          loadNatural(n).then(() => refreshThumb(n));
+        }
+        list.appendChild(grid);
+      }
+    }
+    function refreshThumb(n) {
+      const el = thumbEls[n];
+      if (!el) return;
+      const box = el.querySelector('.frame').clientWidth || 60;
+      layout(el.querySelector('img'), n, box);
+      el.classList.toggle('adjusted', isAdjusted(n));
+    }
+    function refreshProgress() {
+      const done = ORDER.filter(isAdjusted).length;
+      $('progress').innerHTML = `조정한 사진 <strong>${done}</strong> / ${ORDER.length}장`;
+    }
+
+    // ── 미리보기 ──
+    function buildWrapper(el) {
+      el.innerHTML = `
+        <div class="card"><img alt=""><div class="tint"></div><div class="guide"></div></div>
+        <span class="ov ov-gloss" aria-hidden="true"></span>
+        <span class="ov ov-badge hidden" aria-hidden="true"><b>✶</b>작업 중…</span>`;
+    }
+    const wraps = [$('wrap1'), $('wrap2')];
+    wraps.forEach(buildWrapper);
+
+    function render() {
+      const n = current;
+      const a = get(n);
+      wraps.forEach((w) => {
+        const img = w.querySelector('img');
+        if (!img.src.endsWith(file(n))) img.src = IMG_DIR + file(n);
+        layout(img, n, INNER);
+        const card = w.querySelector('.card');
+        card.classList.toggle('gray', $('tGray').checked);
+        card.classList.toggle('red', $('tRed').checked);
+        card.classList.toggle('show-guide', $('tGuide').checked);
+        w.querySelectorAll('.ov-gloss').forEach((o) => o.classList.toggle('hidden', !$('tOverlay').checked));
+        w.querySelector('.ov-badge').classList.toggle('hidden', !$('tBadge').checked);
+      });
+      $('zoomRange').value = a.zoom; $('zoomNum').value = a.zoom.toFixed(2);
+      $('xRange').value = a.x; $('xNum').value = a.x;
+      $('yRange').value = a.y; $('yNum').value = a.y;
+      $('title').firstChild.nodeValue = `cat${n}`;
+      $('subtitle').textContent = `${groupOf[n]} · ${ORDER.indexOf(n) + 1} / ${ORDER.length}`;
+      Object.entries(thumbEls).forEach(([k, el]) => el.setAttribute('aria-current', String(Number(k) === n)));
+      refreshThumb(n);
+      refreshProgress();
+    }
+
+    // 가장자리 자동 맞춤: 사진이 틀을 항상 꽉 채우도록 (빈 공간이 생기지 않게) 위치·배율 제한
+    function clampToFrame(n, a) {
+      const nat = natural[n];
+      if (!nat) return a;
+      const zoom = Math.max(1, a.zoom);
+      const base = Math.max(INNER / nat.w, INNER / nat.h);
+      const maxX = Math.max(0, (nat.w * base * zoom - INNER) / 2);
+      const maxY = Math.max(0, (nat.h * base * zoom - INNER) / 2);
+      return {
+        zoom,
+        x: Math.min(maxX, Math.max(-maxX, a.x)),
+        y: Math.min(maxY, Math.max(-maxY, a.y)),
+      };
+    }
+
+    function setAdjust(patch) {
+      let a = { ...get(current), ...patch };
+      a.zoom = Math.min(3, Math.max(0.5, Math.round(a.zoom * 100) / 100));
+      if ($('tClamp').checked) a = clampToFrame(current, a);
+      a.zoom = Math.round(a.zoom * 100) / 100;
+      a.x = Math.round(a.x); a.y = Math.round(a.y);
+      if (a.zoom === 1 && a.x === 0 && a.y === 0) delete adjust[file(current)];
+      else adjust[file(current)] = a;
+      persist();
+      render();
+    }
+
+    async function select(n) {
+      current = n;
+      await loadNatural(n);
+      render();
+      thumbEls[n].scrollIntoView({ block: 'nearest' });
+    }
+    function step(d) {
+      const i = ORDER.indexOf(current);
+      select(ORDER[(i + d + ORDER.length) % ORDER.length]);
+    }
+
+    // ── 끌기·휠 (두 미리보기 모두) ──
+    wraps.forEach((w, idx) => {
+      const card = w.querySelector('.card');
+      const scale = idx === 1 ? 2 : 1; // 2배 미리보기는 움직인 거리를 절반으로
+      let drag = null;
+      card.addEventListener('pointerdown', (e) => {
+        drag = { x: e.clientX, y: e.clientY, a: { ...get(current) } };
+        card.setPointerCapture(e.pointerId);
+        card.classList.add('dragging');
+      });
+      card.addEventListener('pointermove', (e) => {
+        if (!drag) return;
+        setAdjust({ x: drag.a.x + (e.clientX - drag.x) / scale, y: drag.a.y + (e.clientY - drag.y) / scale });
+      });
+      const end = () => { drag = null; card.classList.remove('dragging'); };
+      card.addEventListener('pointerup', end);
+      card.addEventListener('pointercancel', end);
+      card.addEventListener('lostpointercapture', end);
+      card.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        setAdjust({ zoom: get(current).zoom * (e.deltaY < 0 ? 1.03 : 1 / 1.03) });
+      }, { passive: false });
+    });
+
+    // ── 입력 ──
+    [['zoomRange', 'zoom'], ['zoomNum', 'zoom'], ['xRange', 'x'], ['xNum', 'x'], ['yRange', 'y'], ['yNum', 'y']].forEach(([id, key]) => {
+      $(id).addEventListener('input', () => { const v = parseFloat($(id).value); if (!Number.isNaN(v)) setAdjust({ [key]: v }); });
+    });
+    ['tOverlay', 'tBadge', 'tGuide', 'tGray', 'tRed'].forEach((id) => $(id).addEventListener('change', render));
+    // 맞춤이 켜져 있으면 확대 최소값을 1(틀을 꽉 채우는 크기)로
+    function syncZoomMin() {
+      const min = $('tClamp').checked ? '1' : '0.5';
+      $('zoomRange').min = min; $('zoomNum').min = min;
+      try { localStorage.setItem(STORE + '_clamp', $('tClamp').checked ? '1' : '0'); } catch (e) {}
+    }
+    try { if (localStorage.getItem(STORE + '_clamp') === '0') $('tClamp').checked = false; } catch (e) {}
+    $('tClamp').addEventListener('change', () => { syncZoomMin(); render(); });
+    syncZoomMin();
+    $('resetBtn').addEventListener('click', () => setAdjust({ zoom: 1, x: 0, y: 0 }));
+    $('prevBtn').addEventListener('click', () => step(-1));
+    $('nextBtn').addEventListener('click', () => step(1));
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.matches('input[type="number"]')) return;
+      const a = get(current);
+      const d = e.shiftKey ? 10 : 1;
+      const map = {
+        ArrowLeft: () => setAdjust({ x: a.x - d }), ArrowRight: () => setAdjust({ x: a.x + d }),
+        ArrowUp: () => setAdjust({ y: a.y - d }), ArrowDown: () => setAdjust({ y: a.y + d }),
+        '+': () => setAdjust({ zoom: a.zoom + 0.01 * d }), '=': () => setAdjust({ zoom: a.zoom + 0.01 * d }),
+        '-': () => setAdjust({ zoom: a.zoom - 0.01 * d }), '_': () => setAdjust({ zoom: a.zoom - 0.01 * d }),
+        '[': () => step(-1), ']': () => step(1), '0': () => setAdjust({ zoom: 1, x: 0, y: 0 }),
+      };
+      const fn = map[e.key];
+      if (fn && !(e.target.matches('input[type="range"]') && e.key.startsWith('Arrow'))) { e.preventDefault(); fn(); }
+    });
+
+    // ── 저장·불러오기 ──
+    function toast(msg) {
+      const t = $('toast'); t.textContent = msg; t.classList.add('show');
+      clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2200);
+    }
+    $('saveBtn').addEventListener('click', () => {
+      const items = {};
+      for (const n of ORDER) {
+        const a = get(n);
+        items[file(n)] = { zoom: a.zoom, x: a.x, y: a.y };
+      }
+      const out = {
+        tool: 'CCS photo-adjuster',
+        version: 1,
+        savedAt: new Date().toISOString(),
+        note: 'zoom: object-fit cover 기준 배율, x/y: 사진 영역(150px, 사원증 사진 칸) 기준 이동 px',
+        frame: { card: CARD, inner: INNER },
+        items,
+      };
+      const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'photo-adjustments.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast(`저장했어요: photo-adjustments.json (조정 ${ORDER.filter(isAdjusted).length}장)`);
+    });
+    $('importBtn').addEventListener('click', () => $('importFile').click());
+    $('importFile').addEventListener('change', async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      try {
+        const data = JSON.parse(await f.text());
+        adjust = {};
+        for (const [k, v] of Object.entries(data.items || {})) {
+          if (v.zoom !== 1 || v.x !== 0 || v.y !== 0) adjust[k] = { zoom: v.zoom, x: v.x, y: v.y };
+        }
+        persist();
+        ORDER.forEach(refreshThumb);
+        render();
+        toast('불러왔어요');
+      } catch (err) {
+        toast('JSON 파일을 읽지 못했어요');
+      }
+      e.target.value = '';
+    });
+
+    buildList();
+    select(current);
+    // 원본 폴더에 없는 사진 확인
+    Promise.all(ORDER.map((n) => loadNatural(n).then((r) => (r ? null : n)))).then((miss) => {
+      const m = miss.filter(Boolean);
+      if (m.length) { $('missing').hidden = false; $('missing').textContent = `불러오지 못한 사진: ${m.map((n) => 'cat' + n).join(', ')} (ref_image 폴더 확인)`; }
+    });
+  </script>
+</body>
+</html>

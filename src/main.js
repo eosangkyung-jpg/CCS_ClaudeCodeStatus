@@ -2,6 +2,7 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, Notificati
 const path = require('path');
 const fs = require('fs');
 const { fetchUsageData, resolveState, calculatePace } = require('./services/usageService');
+const { createActivityMonitor, areHooksInstalled, setHooksInstalled } = require('./services/activityService');
 
 let mainWindow = null;
 let tray = null;
@@ -21,13 +22,15 @@ const DEFAULT_ALERT_RULES = {
 };
 
 // 기본 창 크기(DIP). 글자 크기 옵션은 화면 확대와 창 크기를 같은 비율로 키운다.
+// 높이 = 말풍선 공간(기존 540 - 캐릭터 170) + 사원증 325
 const BASE_WIDTH = 340;
-const BASE_HEIGHT = 540;
+const BASE_HEIGHT = 695;
 const UI_SCALES = [1, 1.25, 1.5];
 
 const DEFAULT_SETTINGS = {
   notificationsPaused: false,
   uiScale: 1,
+  warningEffects: 'default', // 'default' | 'off' (흔들림·붉은 막·튀는 움직임·스피너 회전 끄기)
   tierCatMap: null, // 위젯이 배정한 구간별 고양이 사진 (renderer에서 동기화)
   openAtLogin: false,
   bubbleDuration: 3500,
@@ -61,8 +64,15 @@ function getMaxUiScale() {
 }
 
 function settingsPayload() {
-  return { ...currentSettings, maxUiScale: getMaxUiScale() };
+  return { ...currentSettings, maxUiScale: getMaxUiScale(), claudeHooksInstalled: areHooksInstalled() };
 }
+
+// Claude Code 작업 상태 (working / waiting / idle) → 위젯 스피너 배지
+const activityMonitor = createActivityMonitor((state) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('activity-updated', state);
+  }
+});
 
 function loadSettings() {
   try {
@@ -204,12 +214,26 @@ function applyUiScale(requested) {
   setTimeout(() => { isApplyingScale = false; }, 300);
 }
 
+// 기본 위치: 사원증 중심이 주 모니터 작업 영역의 이 비율 지점에 오도록 (2026-11-05 사용자가 지정)
+// 해상도·배율이 달라도 같은 비율 위치에 놓이고, 사원증이 화면 밖으로 나가지 않게 보정한다.
+const DEFAULT_CARD_CENTER = { fx: 0.9066, fy: 0.8312 };
+// 창 안에서 사원증 중심의 위치(배율 1 기준): 가로는 창 가운데, 세로는 아래 여백 16 + 사원증 높이 325의 절반
+const CARD_CENTER_FROM_BOTTOM = 16 + 325 / 2;
+const CARD_HALF_W = 226 / 2;
+const CARD_HALF_H = 325 / 2;
+
 function getDefaultPosition(width, height) {
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { workArea } = primaryDisplay;
+  const { workArea } = screen.getPrimaryDisplay();
+  const scale = width / BASE_WIDTH;
+  const halfW = CARD_HALF_W * scale;
+  const halfH = CARD_HALF_H * scale;
+  let cx = workArea.x + workArea.width * DEFAULT_CARD_CENTER.fx;
+  let cy = workArea.y + workArea.height * DEFAULT_CARD_CENTER.fy;
+  cx = Math.min(Math.max(cx, workArea.x + halfW), workArea.x + workArea.width - halfW);
+  cy = Math.min(Math.max(cy, workArea.y + halfH), workArea.y + workArea.height - halfH);
   return {
-    x: Math.round(workArea.x + workArea.width - width - 30),
-    y: Math.round(workArea.y + workArea.height - height - 30),
+    x: Math.round(cx - width / 2),
+    y: Math.round(cy - (height - CARD_CENTER_FROM_BOTTOM * scale)),
   };
 }
 
@@ -222,8 +246,9 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: windowWidth,
     height: windowHeight,
-    x: savedSettings.x ?? defaultPos.x,
-    y: savedSettings.y ?? defaultPos.y,
+    // 켤 때마다 항상 기본 위치에서 시작 (저장된 마지막 위치는 쓰지 않음)
+    x: defaultPos.x,
+    y: defaultPos.y,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -256,6 +281,7 @@ function createWindow() {
     // 저장된 글자 크기가 이 모니터에 안 들어가면 맞는 크기로 낮춤
     if ((currentSettings.uiScale || 1) > getMaxUiScale()) applyUiScale(getMaxUiScale());
     mainWindow.webContents.send('settings-updated', settingsPayload());
+    mainWindow.webContents.send('activity-updated', activityMonitor.state);
     updateUsage();
   });
 }
@@ -387,14 +413,13 @@ function updateTrayMenu() {
     {
       label: '🧪 테스트 시뮬레이션',
       submenu: [
-        { label: '0% (초기 상태)', click: () => simulateUsage(5) },
-        { label: '25% (여유: 일라이저 우드)', click: () => simulateUsage(25) },
-        { label: '45% (안정: 린마누엘)', click: () => simulateUsage(45) },
-        { label: '70% (고민: 비버 웅크림)', click: () => simulateUsage(70) },
-        { label: '85% (기도: 비버 기도)', click: () => simulateUsage(85) },
-        { label: '92% (경고: 비버 손바닥 스톱)', click: () => simulateUsage(92) },
-        { label: '97% (멘붕: 비버 농구공)', click: () => simulateUsage(97) },
-        { label: '100% (소진: 비버 흑백+타이머)', click: () => simulateUsage(100) },
+        { label: '5% (여유)', click: () => simulateUsage(5) },
+        { label: '45% (안정)', click: () => simulateUsage(45) },
+        { label: '70% (조금 빠름)', click: () => simulateUsage(70) },
+        { label: '85% (빠름)', click: () => simulateUsage(85) },
+        { label: '92% (멈춰!)', click: () => simulateUsage(92) },
+        { label: '97% (위기)', click: () => simulateUsage(97) },
+        { label: '100% (소진: 흑백 + 영정 띠 + 카운트다운)', click: () => simulateUsage(100) },
         { type: 'separator' },
         { label: '⚠️ 에러 테스트: 로그인 미완료', click: () => simulateError('NO_CREDENTIALS') },
         { label: '⚠️ 에러 테스트: 인증 만료', click: () => simulateError('AUTH_EXPIRED') },
@@ -445,6 +470,7 @@ app.whenReady().then(() => {
   // macOS: Dock 아이콘 숨김 (위젯은 메뉴 막대 아이콘으로만 조작)
   if (process.platform === 'darwin' && app.dock) app.dock.hide();
   createWindow();
+  activityMonitor.start();
   createTray();
 
   pollInterval = setInterval(updateUsage, 5 * 60 * 1000);
@@ -469,6 +495,36 @@ ipcMain.on('request-refresh', () => {
 });
 ipcMain.on('close-app', () => app.quit());
 ipcMain.on('set-simulation', (_event, percent) => simulateUsage(percent));
+// 설정 패널의 'Claude Code 작업 감지' 켜기/끄기: ~/.claude/settings.json에 우리 훅만 추가/제거
+ipcMain.handle('set-claude-hooks', (_event, enable) => {
+  const result = setHooksInstalled(!!enable);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('settings-updated', settingsPayload());
+  }
+  return result;
+});
+
+// 설정 패널을 열 때 위젯을 활성화(포커스)해 바로 마우스 휠 스크롤이 되게 하고, 닫을 때 포커스를 놓는다.
+// (클릭 통과 위젯은 포커스가 없으면 Windows가 휠 입력을 보내 주지 않음 — TROUBLESHOOTING 44)
+ipcMain.on('set-window-focus', (_event, focus) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (focus) mainWindow.focus();
+  else mainWindow.blur();
+});
+
+// 창 위치·모니터 작업 영역 조회 (기본 위치 비율을 정할 때 사용)
+ipcMain.handle('get-placement', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  const bounds = mainWindow.getBounds();
+  const display = screen.getDisplayMatching(bounds);
+  return {
+    bounds,
+    workArea: display.workArea,
+    scaleFactor: display.scaleFactor,
+    isPrimary: display.id === screen.getPrimaryDisplay().id,
+  };
+});
+
 ipcMain.on('set-ui-scale', (_event, scale) => {
   applyUiScale(Number(scale));
 });
@@ -483,7 +539,10 @@ ipcMain.on('reset-position', () => {
 ipcMain.on('drag-window', (_event, { deltaX, deltaY }) => {
   if (mainWindow) {
     const [x, y] = mainWindow.getPosition();
-    mainWindow.setPosition(x + deltaX, y + deltaY);
+    // setPosition만 쓰면 배율이 다른 모니터 사이에서 끌 때 창 크기가 조금씩 커지는 문제가 있어
+    // 크기를 현재 글자 크기 기준값으로 고정해서 함께 지정한다.
+    const { width, height } = getWindowSize(currentSettings.uiScale || 1);
+    mainWindow.setBounds({ x: x + deltaX, y: y + deltaY, width, height });
   }
 });
 ipcMain.on('set-ignore-mouse-events', (_event, ignore, options) => {

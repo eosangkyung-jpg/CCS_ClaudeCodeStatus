@@ -8,6 +8,7 @@
 <body>
   <div class="widget-container">
     <div class="sr-only" id="srAnnounce" role="status" aria-live="polite"></div>
+    <div class="sr-only" id="srActivity" role="status" aria-live="polite"></div>
     <!-- 호버 시 나타나는 말풍선 카드 -->
     <div class="speech-bubble" id="speechBubble">
       <div class="bubble-header">
@@ -24,7 +25,7 @@
               <path d="M16 21h5v-5"/>
             </svg>
           </button>
-          <button class="action-btn" id="settingsBtn" title="알림 설정" aria-label="알림 설정" aria-expanded="false" aria-controls="settingsPanel">
+          <button class="action-btn" id="settingsBtn" title="위젯 설정" aria-label="위젯 설정" aria-expanded="false" aria-controls="settingsPanel">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" focusable="false">
               <circle cx="12" cy="12" r="3"/>
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -36,7 +37,7 @@
       <!-- 알림 설정 패널 (구간별 상세 매트릭스 설정) -->
       <div class="settings-panel" id="settingsPanel" style="display: none;">
         <div class="settings-header-row">
-          <div class="settings-title">위젯 알림 설정</div>
+          <div class="settings-title">위젯 설정</div>
           <button class="settings-close-btn" id="settingsDoneBtn">✕</button>
         </div>
 
@@ -52,6 +53,28 @@
               <button class="scale-btn" role="radio" data-scale="1" aria-checked="true">100%</button>
               <button class="scale-btn" role="radio" data-scale="1.25" aria-checked="false">125%</button>
               <button class="scale-btn" role="radio" data-scale="1.5" aria-checked="false">150%</button>
+            </div>
+          </div>
+          <div class="scale-row">
+            <span class="opt-label">
+              <span id="effectsLabel">경고 효과</span>
+              <button type="button" class="help-tip" aria-label="경고 효과 설명" aria-describedby="effectsHint">?</button>
+              <span class="help-pop" role="tooltip" id="effectsHint">끄면 위기 때 흔들림·붉은 막·튀어나오는 움직임·스피너 회전이 사라져요. 태그·숫자·테두리 색으로는 계속 알려 줘요.</span>
+            </span>
+            <div class="scale-options" id="effectsOptions" role="radiogroup" aria-labelledby="effectsLabel" aria-describedby="effectsHint">
+              <button class="scale-btn effects-btn" role="radio" data-effects="default" aria-checked="true">기본</button>
+              <button class="scale-btn effects-btn" role="radio" data-effects="off" aria-checked="false">끄기</button>
+            </div>
+          </div>
+          <div class="scale-row">
+            <span class="opt-label">
+              <span id="claudeHooksLabel">작업중 표시</span>
+              <button type="button" class="help-tip" aria-label="작업중 표시 설명" aria-describedby="claudeHooksHint">?</button>
+              <span class="help-pop" role="tooltip" id="claudeHooksHint">켜면 Claude Code 설정에 상태 알림 훅을 추가해 작업 시작·끝을 정확히 알아요. 꺼져 있어도 대화 기록으로 대략 표시돼요.</span>
+            </span>
+            <div class="scale-options" id="claudeHooksOptions" role="radiogroup" aria-labelledby="claudeHooksLabel" aria-describedby="claudeHooksHint">
+              <button class="scale-btn hooks-btn" role="radio" data-hooks="on" aria-checked="false">켜기</button>
+              <button class="scale-btn hooks-btn" role="radio" data-hooks="off" aria-checked="true">끄기</button>
             </div>
           </div>
         </div>
@@ -130,29 +153,52 @@
       </div>
     </div>
 
-    <!-- 캐릭터 영역 (드래그 가능) -->
+    <!-- 사원증 (드래그 가능): 투명 비닐 케이스 이미지 + 종이 위에 사진·사용률·리셋 시간 -->
     <div class="character-wrapper" id="characterWrapper">
-      <!-- 고양이 사진 다시 섞기(셔플) 버튼 -->
-      <button class="shuffle-btn" id="shuffleBtn" title="고양이 사진 다시 섞기" aria-label="고양이 사진 다시 섞기"><span aria-hidden="true">🎲</span></button>
+      <img class="badge-holder" src="../assets/images/badge-holder.png" alt="" draggable="false">
 
       <!-- 트레이 숨기기 (-) 버튼 -->
       <button class="minimize-btn" id="minimizeBtn" title="트레이로 숨기기" aria-label="트레이로 숨기기"><span aria-hidden="true">−</span></button>
 
-      <!-- 캐릭터 본체 -->
-      <div class="character-card" id="characterCard">
-        <img id="characterImg" src="../assets/images/cat1.jpg" alt="">
+      <!-- 종이 영역 (밖으로 나간 도장은 잘림) -->
+      <div class="badge-paper">
+        <!-- 사진 클릭: 각 단계 사진 다시 뽑기 / 끌기: 위치 이동 -->
+        <div class="character-card" id="characterCard" role="button" tabindex="0" title="클릭: 사진 바꾸기 · 끌기: 위치 이동" aria-label="고양이 사진 다시 뽑기">
+          <img id="characterImg" src="../assets/images/cat4.jpg" alt="" draggable="false">
 
-        <!-- 100% 소진 시 사진 위에 뜨는 디지털 리셋 카운트다운 (Claude 전용) -->
-        <div class="countdown-badge" id="countdownBadge" style="display: none;">
-          <span class="countdown-digits">
-            <span class="countdown-ghost" aria-hidden="true">88:88:88</span>
-            <span id="countdownTimer">00:00:00</span>
-          </span>
+          <!-- 작업 중 + 사용량 90% 이상일 때 붉은 막 -->
+          <div class="tint-overlay" aria-hidden="true"></div>
+
+          <!-- 100% 소진: 영정 사진처럼 위쪽 양 모서리 검은 띠 -->
+          <div class="mourning-ribbons" aria-hidden="true">
+            <span class="ribbon ribbon-left"></span>
+            <span class="ribbon ribbon-right"></span>
+          </div>
+
+          <!-- Claude Code 작업 중 표시 (스피너 배지) -->
+          <div class="activity-badge" id="activityBadge" hidden>
+            <span class="activity-spinner" id="activitySpinner" aria-hidden="true">✶</span>
+            <span id="activityText">작업 중…</span>
+          </div>
         </div>
-      </div>
 
-      <!-- 작은 퍼센트 뱃지 -->
-      <div class="percent-chip" id="percentChip">--%</div>
+        <!-- 사진 아래: 5시간 세션 사용률(왼쪽, 크게) + 세션 리셋까지 남은 시간(오른쪽) -->
+        <div class="badge-fields">
+          <div class="badge-pct" aria-label="5시간 세션 사용률"><span class="badge-num" id="percentChip">--</span><span class="badge-num badge-unit" aria-hidden="true">%</span></div>
+          <div class="badge-reset">
+            <small>Reset in</small>
+            <span class="badge-num" id="badgeResetTime">--:--:--</span>
+          </div>
+        </div>
+
+        <!-- 사용률 게이지 바 (흑백 모노 그라데이션) -->
+        <div class="badge-gauge" aria-hidden="true">
+          <div class="badge-gauge-fill" id="badgeGaugeFill" style="width: 0%;"></div>
+        </div>
+
+        <!-- CCS 도장 (옅게) -->
+        <img class="badge-stamp" src="../assets/images/ccs-stamp.png" alt="" draggable="false">
+      </div>
     </div>
   </div>
 

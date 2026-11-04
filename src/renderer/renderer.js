@@ -7,8 +7,9 @@ const resetTime = document.getElementById('resetTime');
 const weeklyVal = document.getElementById('weeklyVal');
 const quoteText = document.getElementById('quoteText');
 const percentChip = document.getElementById('percentChip');
-const countdownBadge = document.getElementById('countdownBadge');
-const countdownTimer = document.getElementById('countdownTimer');
+const badgeGaugeFill = document.getElementById('badgeGaugeFill');
+const characterWrapperEl = document.getElementById('characterWrapper');
+const badgeResetTime = document.getElementById('badgeResetTime');
 const refreshBtn = document.getElementById('refreshBtn');
 const minimizeBtn = document.getElementById('minimizeBtn');
 const settingsBtn = document.getElementById('settingsBtn');
@@ -53,7 +54,7 @@ function isSettingsOpen() {
 }
 
 // 말풍선 본문 영역은 [설정 패널 | 사용량 본문 | 에러 카드] 중 하나만 보인다.
-// 창 높이(540px)가 고정이라 둘 이상 동시에 보이면 말풍선 상단이 창 밖으로 잘린다.
+// 창 높이가 고정이라 둘 이상 동시에 보이면 말풍선 상단이 창 밖으로 잘린다.
 function syncBubbleBodyVisibility() {
   const settingsOpen = isSettingsOpen();
   if (normalBubbleBody) normalBubbleBody.style.display = settingsOpen || lastUsageFailed ? 'none' : 'block';
@@ -62,7 +63,12 @@ function syncBubbleBodyVisibility() {
 
 function setSettingsOpen(open) {
   if (!settingsPanel) return;
+  const wasOpen = isSettingsOpen();
   settingsPanel.style.display = open ? 'block' : 'none';
+  // 설정을 열면 위젯을 활성화해 바로 휠 스크롤 가능, 닫으면 포커스를 놓아 원래 창으로
+  if (open !== wasOpen && window.widgetAPI && window.widgetAPI.setWindowFocus) {
+    window.widgetAPI.setWindowFocus(open);
+  }
   if (settingsBtn) settingsBtn.setAttribute('aria-expanded', String(open));
   syncBubbleBodyVisibility();
 }
@@ -102,8 +108,12 @@ function formatWeeklyResetTime(isoString) {
   return `${hours}시간 후 리셋`;
 }
 
+// 사원증 오른쪽 아래: 5시간 세션 리셋까지 남은 시간 (01:23:45, 1초마다 갱신)
 function updateCountdownText() {
-  if (!currentResetTimestamp) return;
+  if (!currentResetTimestamp) {
+    badgeResetTime.textContent = '--:--:--';
+    return;
+  }
   const target = new Date(currentResetTimestamp).getTime();
   const now = Date.now();
   const diff = Math.max(0, target - now);
@@ -112,7 +122,7 @@ function updateCountdownText() {
   const minutes = String(Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0');
   const seconds = String(Math.floor((diff % (1000 * 60)) / 1000)).padStart(2, '0');
 
-  countdownTimer.textContent = `${hours}:${minutes}:${seconds}`;
+  badgeResetTime.textContent = `${hours}:${minutes}:${seconds}`;
 }
 
 function interpolatePinkRed(percent) {
@@ -154,15 +164,34 @@ const TIER_KEYS = [
   'state_95_100',
 ];
 
-const ALL_CAT_IMAGES = Array.from({ length: 38 }, (_, i) => `cat${i + 1}.jpg`);
+// 단계별 고양이 사진 풀 (2026-11-05 확정, CLAUDE.md 2.2). 각 단계는 자기 풀 안에서만 무작위 배정.
+// 95~100%는 한 묶음: 100%가 되면 같은 사진이 흑백 + 영정 띠 + 카운트다운으로 바뀐다.
+const TIER_POOLS = {
+  state_0_30: [4, 10, 19, 23, 37, 38, 39, 52], // 여유
+  state_30_60: [5, 15, 18, 31, 32, 33, 54], // 안정
+  state_60_80: [11, 12, 24, 27, 28, 50, 51], // 조금 빠름
+  state_80_90: [6, 29, 30, 43, 46, 48, 55, 60], // 빠름
+  state_90_94: [9, 14, 17, 21, 22, 49], // 멈춰!
+  state_95_100: [1, 2, 7, 8, 20, 25, 36, 40, 44, 45, 47, 57, 61], // 위기·소진
+};
+// Claude Code 작업 중에만 나오는 사진 (단계 풀에는 넣지 않음)
+const WORKING_POOL = [3, 13, 16, 26, 35, 41, 42, 53, 56, 58, 59];
 
-function shuffleArray(arr) {
-  const result = [...arr];
-  for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
+const catFile = (n) => `cat${n}.jpg`;
+
+// 풀에서 무작위 1장. 직전 사진(avoid)은 가능하면 피한다.
+function pickFrom(pool, avoid) {
+  const files = pool.map(catFile);
+  const candidates = files.length > 1 ? files.filter((f) => f !== avoid) : files;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+function buildTierCatMap(previous) {
+  const map = {};
+  TIER_KEYS.forEach((tier) => {
+    map[tier] = pickFrom(TIER_POOLS[tier], previous && previous[tier]);
+  });
+  return map;
 }
 
 function initializeTierCatMap() {
@@ -172,19 +201,16 @@ function initializeTierCatMap() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       map = JSON.parse(saved);
-      const isComplete = TIER_KEYS.every(k => map && map[k]);
-      if (!isComplete) map = null;
+      // 저장된 배정이 지금 풀 규칙에 맞는지 확인 (예전 완전 랜덤 배정이면 새로 뽑음)
+      const valid = TIER_KEYS.every((k) => map && TIER_POOLS[k].map(catFile).includes(map[k]));
+      if (!valid) map = null;
     }
   } catch (e) {
     map = null;
   }
 
   if (!map) {
-    const shuffled = shuffleArray(ALL_CAT_IMAGES);
-    map = {};
-    TIER_KEYS.forEach((tier, index) => {
-      map[tier] = shuffled[index % shuffled.length];
-    });
+    map = buildTierCatMap(null);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
     } catch (e) {}
@@ -202,28 +228,34 @@ function syncTierCatMapToMain(map) {
 let currentTierCatMap = initializeTierCatMap();
 syncTierCatMapToMain(currentTierCatMap);
 
+// Claude Code 작업 상태와 작업 중 사진 (작업 한 번에 1장 고정)
+let currentActivity = 'idle';
+let currentWorkingCat = null;
+
+function setWorkingActivity(state) {
+  const wasActive = currentActivity === 'working' || currentActivity === 'waiting';
+  const isActive = state === 'working' || state === 'waiting';
+  if (isActive && !wasActive) currentWorkingCat = pickFrom(WORKING_POOL, currentWorkingCat);
+  currentActivity = state;
+  applyUsageState(lastUsagePayload || { claude: null });
+}
+
 function shuffleCatMap() {
   const STORAGE_KEY = 'sideproj_tier_cat_map';
-  const shuffled = shuffleArray(ALL_CAT_IMAGES);
-  const map = {};
-  TIER_KEYS.forEach((tier, index) => {
-    map[tier] = shuffled[index % shuffled.length];
-  });
+  const map = buildTierCatMap(currentTierCatMap);
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
   } catch (e) {}
   currentTierCatMap = map;
   syncTierCatMapToMain(map);
+  // 작업 중이면 작업 중 사진도 새로 뽑음
+  if (currentWorkingCat) currentWorkingCat = pickFrom(WORKING_POOL, currentWorkingCat);
 
-  if (lastUsagePayload) {
-    applyUsageState(lastUsagePayload);
-  } else {
-    applyUsageState({ claude: null });
-  }
+  applyUsageState(lastUsagePayload || { claude: null });
 }
 
 function getCatImageForTier(tierId) {
-  return currentTierCatMap[tierId] || 'cat1.jpg';
+  return currentTierCatMap[tierId] || catFile(TIER_POOLS[tierId][0]);
 }
 
 function getImageDataUri(fileKey) {
@@ -239,43 +271,37 @@ function getLocalStateForPercent(percent) {
     return {
       id: 'state_0_30',
       label: '여유',
-      image: getImageDataUri(getCatImageForTier('state_0_30')),
       quote: '토큰 넉넉해요! 뭐든 시켜주세요.',
     };
   } else if (p < 60) {
     return {
       id: 'state_30_60',
       label: '안정',
-      image: getImageDataUri(getCatImageForTier('state_30_60')),
       quote: '순항 중입니다. 페이스 아주 좋아요.',
     };
   } else if (p < 80) {
     return {
       id: 'state_60_80',
-      label: '고민',
-      image: getImageDataUri(getCatImageForTier('state_60_80')),
+      label: '조금 빠름',
       quote: '절반을 훌쩍 넘었어요. 긴 프롬프트 주의!',
     };
   } else if (p < 90) {
     return {
       id: 'state_80_90',
-      label: '기도',
-      image: getImageDataUri(getCatImageForTier('state_80_90')),
+      label: '빠름',
       quote: '간당간당합니다... 제발 리셋까지 버텨줘 🙏',
     };
   } else if (p < 95) {
     return {
       id: 'state_90_94',
       label: '멈춰!',
-      image: getImageDataUri(getCatImageForTier('state_90_94')),
       quote: '진짜 마지막 경고! 지금 쏘면 끝장납니다!',
     };
   } else {
     const isOver = p >= 100;
     return {
       id: 'state_95_100',
-      label: isOver ? '소진 완료' : '멘붕/위기',
-      image: getImageDataUri(getCatImageForTier('state_95_100')),
+      label: isOver ? '소진' : '위기',
       quote: isOver ? '한도가 모두 소진되었습니다! 🚨' : '95% 도달! 손 떼세요! 멘붕 직전!',
     };
   }
@@ -284,7 +310,11 @@ function getLocalStateForPercent(percent) {
 function applyUsageState(data) {
   const p = data && data.claude && data.claude.success ? Math.round(data.claude.session.percent) : 0;
 
-  percentChip.textContent = `${p}%`;
+  const hasData = !!(data && data.claude && data.claude.success);
+  percentChip.textContent = hasData ? String(p) : '--';
+  if (badgeGaugeFill) {
+    badgeGaugeFill.style.width = hasData ? `${Math.min(100, Math.max(0, p))}%` : '0%';
+  }
 
   // 퍼센트에 따른 상태 및 이미지 즉시 산출 및 적용
   const state = getLocalStateForPercent(p);
@@ -300,42 +330,33 @@ function applyUsageState(data) {
     statusDot.style.boxShadow = theme.glow;
   }
 
+  // 작업 중(허락 대기 포함)이고 100% 미만이면 작업 중 전용 사진, 아니면 단계 사진
+  // 100% 소진은 Claude Code가 사실상 일할 수 없으므로 소진 연출(흑백·영정 띠)을 우선
+  const isWorking = (currentActivity === 'working' || currentActivity === 'waiting') && !!currentWorkingCat;
+  const showWorking = isWorking && p < 100;
+  const imageKey = showWorking ? currentWorkingCat : getCatImageForTier(state.id);
+  const imageSrc = getImageDataUri(imageKey);
+
   const imgElem = document.getElementById('characterImg');
   if (state && imgElem) {
     statusBadge.textContent = state.label;
     quoteText.textContent = `"${state.quote}"`;
     // file:// 프로토콜에서는 쿼리스트링(?t=)이 들어가면 윈도우 파일명을 찾지 못하므로 순수 경로 대입
-    imgElem.src = state.image;
-    imgElem.setAttribute('src', state.image);
-    console.log(`[위젯] 상태 전환 성공: ${state.label} (${p}%) -> ${state.image}`);
+    if (imgElem.getAttribute('src') !== imageSrc) imgElem.setAttribute('src', imageSrc);
   }
 
-  if (p >= 95 && p < 100) {
-    characterCard.classList.add('shake');
-  } else {
-    characterCard.classList.remove('shake');
-  }
+  characterCard.classList.toggle('shake', p >= 95 && p < 100);
+  characterCard.classList.toggle('exhausted', p >= 100);
+  // 작업 중인데 사용량이 높으면 사진을 붉게: 90~94% 옅게, 95~99% 진하게
+  characterCard.classList.toggle('tint-light', showWorking && p >= 90 && p < 95);
+  characterCard.classList.toggle('tint-strong', showWorking && p >= 95 && p < 100);
+  // 사원증 숫자: 90% 이상이면 빨갛게
+  characterWrapperEl.classList.toggle('danger', hasData && p >= 90 && p < 100);
+  characterWrapperEl.classList.toggle('exhausted', hasData && p >= 100);
 
-  if (p >= 100) {
-    characterCard.classList.add('exhausted');
-  } else {
-    characterCard.classList.remove('exhausted');
-  }
-
-  // 100% 소진 시 5시간 세션 리셋까지 카운트다운
-  if (p >= 100) {
-    countdownBadge.style.display = 'flex';
-    if (!countdownInterval) {
-      updateCountdownText();
-      countdownInterval = setInterval(updateCountdownText, 1000);
-    }
-  } else {
-    countdownBadge.style.display = 'none';
-    if (countdownInterval) {
-      clearInterval(countdownInterval);
-      countdownInterval = null;
-    }
-  }
+  // 리셋까지 남은 시간은 사용량과 관계없이 항상 표시
+  updateCountdownText();
+  if (!countdownInterval) countdownInterval = setInterval(updateCountdownText, 1000);
 }
 
 function renderUsage(data) {
@@ -344,7 +365,10 @@ function renderUsage(data) {
   if (!data.success) {
     statusBadge.textContent = '인증/연결 필요';
     statusBadge.style.background = '#ef4444';
-    percentChip.textContent = '⚠️';
+    percentChip.textContent = '--';
+    currentResetTimestamp = null;
+    updateCountdownText();
+    characterWrapperEl.classList.remove('danger', 'exhausted');
 
     lastUsageFailed = true;
     syncBubbleBodyVisibility();
@@ -352,8 +376,7 @@ function renderUsage(data) {
     errorTitle.textContent = data.errorMessage || '데이터를 불러오지 못했습니다.';
     errorDesc.textContent = data.errorGuide || 'Claude Code 로그인 상태를 확인해 주세요.';
 
-    characterCard.classList.remove('shake', 'exhausted');
-    countdownBadge.style.display = 'none';
+    characterCard.classList.remove('shake', 'exhausted', 'tint-light', 'tint-strong');
     return;
   }
 
@@ -390,6 +413,7 @@ function renderUsage(data) {
       paceBadge.textContent = c.pace.badge;
     }
   } else {
+    currentResetTimestamp = null;
     sessionVal.textContent = '미로그인';
     sessionBar.style.width = '0%';
     setBarValue(sessionBar, 0);
@@ -416,14 +440,6 @@ if (window.widgetAPI) {
     window.widgetAPI.requestRefresh();
   });
 
-  const shuffleBtn = document.getElementById('shuffleBtn');
-  if (shuffleBtn) {
-    shuffleBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      shuffleCatMap();
-    });
-  }
-
   if (minimizeBtn) {
     minimizeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -438,12 +454,12 @@ if (window.widgetAPI) {
   const colToast = document.getElementById('colToast');
 
   const TIERS = [
-    { id: 'state_0_30', label: '0~30% 여유' },
-    { id: 'state_30_60', label: '30~60% 안정' },
-    { id: 'state_60_80', label: '60~80% 고민' },
-    { id: 'state_80_90', label: '80~90% 기도' },
-    { id: 'state_90_94', label: '90~94% 멈춰!' },
-    { id: 'state_95_99', label: '95~99% 위기' },
+    { id: 'state_0_30', label: '0~30%' },
+    { id: 'state_30_60', label: '30~60%' },
+    { id: 'state_60_80', label: '60~80%' },
+    { id: 'state_80_90', label: '80~90%' },
+    { id: 'state_90_94', label: '90~94%' },
+    { id: 'state_95_99', label: '95~99%' },
     { id: 'state_100', label: '100% 소진' },
     { id: 'state_reset', label: '리셋 완료' },
   ];
@@ -544,8 +560,118 @@ if (window.widgetAPI) {
     });
   }
 
+  // Claude Code 작업 중 스피너 배지
+  const activityBadge = document.getElementById('activityBadge');
+  const activitySpinner = document.getElementById('activitySpinner');
+  const activityText = document.getElementById('activityText');
+  const srActivity = document.getElementById('srActivity');
+  const SPINNER_FRAMES = ['·', '✢', '✳', '✶', '✻', '✽', '✻', '✶', '✳', '✢'];
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let effectsOff = false; // 설정 '경고 효과: 끄기'
+  let spinnerTimer = null;
+  let spinnerIndex = 0;
+  let lastActivity = 'idle';
+
+  function setActivity(state) {
+    if (!activityBadge) return;
+    const active = state === 'working' || state === 'waiting';
+    activityBadge.hidden = !active;
+    activityBadge.classList.toggle('waiting', state === 'waiting');
+    if (activityText) activityText.textContent = state === 'waiting' ? '허락 기다리는 중🐾' : '작업 중…';
+
+    if (active && !reduceMotion && !effectsOff && state === 'working') {
+      if (!spinnerTimer) {
+        spinnerTimer = setInterval(() => {
+          spinnerIndex = (spinnerIndex + 1) % SPINNER_FRAMES.length;
+          activitySpinner.textContent = SPINNER_FRAMES[spinnerIndex];
+        }, 120);
+      }
+    } else {
+      if (spinnerTimer) clearInterval(spinnerTimer);
+      spinnerTimer = null;
+      if (activitySpinner) activitySpinner.textContent = state === 'waiting' ? '✋' : '✶';
+    }
+
+    // 화면 낭독기에는 상태가 바뀔 때만 알림 (프레임마다 읽지 않음)
+    if (srActivity && state !== lastActivity) {
+      srActivity.textContent = state === 'working' ? 'Claude Code 작업 중' : state === 'waiting' ? 'Claude Code가 허락을 기다리는 중' : 'Claude Code 작업 끝';
+    }
+    lastActivity = state;
+    setWorkingActivity(state);
+  }
+  if (window.widgetAPI.onActivityUpdated) window.widgetAPI.onActivityUpdated(setActivity);
+
+  // 설정: Claude Code 작업 표시(훅) 켜기/끄기
+  const claudeHooksButtons = [...document.querySelectorAll('.hooks-btn')];
+  let claudeHooksInstalled = false;
+  function renderClaudeHooks(installed) {
+    claudeHooksInstalled = installed;
+    claudeHooksButtons.forEach((btn) => {
+      const selected = btn.dataset.hooks === (installed ? 'on' : 'off');
+      btn.setAttribute('aria-checked', String(selected));
+      btn.tabIndex = selected ? 0 : -1;
+    });
+  }
+  claudeHooksButtons.forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const wantInstall = btn.dataset.hooks === 'on';
+      if (wantInstall === claudeHooksInstalled) return;
+
+      claudeHooksButtons.forEach(b => b.disabled = true);
+      const result = await window.widgetAPI.setClaudeHooks(wantInstall);
+      claudeHooksButtons.forEach(b => b.disabled = false);
+
+      if (result && !result.ok) {
+        const srAnnounce = document.getElementById('srAnnounce');
+        if (srAnnounce) srAnnounce.textContent = result.error;
+        btn.title = result.error;
+      } else {
+        renderClaudeHooks(wantInstall);
+      }
+    });
+  });
+  const hooksGroup = document.getElementById('claudeHooksOptions');
+  if (hooksGroup) {
+    hooksGroup.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const next = claudeHooksButtons.find((b) => b.getAttribute('aria-checked') !== 'true');
+      if (next) { next.focus(); next.click(); }
+    });
+  }
+
+  // 경고 효과: 기본 / 끄기
+  const effectsButtons = [...document.querySelectorAll('.effects-btn')];
+  function renderEffects(mode) {
+    effectsOff = mode === 'off';
+    document.body.classList.toggle('effects-off', effectsOff);
+    effectsButtons.forEach((btn) => {
+      const selected = btn.dataset.effects === (effectsOff ? 'off' : 'default');
+      btn.setAttribute('aria-checked', String(selected));
+      btn.tabIndex = selected ? 0 : -1;
+    });
+    setActivity(lastActivity); // 스피너 회전 여부 다시 적용
+  }
+  effectsButtons.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      renderEffects(btn.dataset.effects);
+      window.widgetAPI.updateSettings({ warningEffects: btn.dataset.effects });
+    });
+  });
+  const effectsGroup = document.getElementById('effectsOptions');
+  if (effectsGroup) {
+    effectsGroup.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const next = effectsButtons.find((b) => b.getAttribute('aria-checked') !== 'true');
+      if (next) { next.focus(); next.click(); }
+    });
+  }
+
   // 글자 크기: 화면 확대 + 창 크기를 같은 비율로 변경 (main 프로세스가 처리)
-  const scaleButtons = [...document.querySelectorAll('.scale-btn')];
+  const scaleButtons = [...document.querySelectorAll('.scale-btn[data-scale]')];
   function renderUiScale(scale, maxScale) {
     scaleButtons.forEach((btn) => {
       const value = Number(btn.dataset.scale);
@@ -579,6 +705,8 @@ if (window.widgetAPI) {
     window.widgetAPI.onSettingsUpdated((settings) => {
       if (settingOpenAtLogin) settingOpenAtLogin.checked = !!settings.openAtLogin;
       renderUiScale(settings.uiScale || 1, settings.maxUiScale || 1.5);
+      renderClaudeHooks(!!settings.claudeHooksInstalled);
+      renderEffects(settings.warningEffects === 'off' ? 'off' : 'default');
 
       renderMatrix(settings.alertRules);
     });
@@ -634,16 +762,27 @@ if (window.widgetAPI) {
   let isDragging = false;
   let startX = 0;
   let startY = 0;
+  // 클릭과 끌기 구분: 누른 뒤 총 이동 거리가 CLICK_MOVE_LIMIT px 미만이면 클릭(사진 다시 뽑기)
+  const CLICK_MOVE_LIMIT = 4;
+  let pressX = 0;
+  let pressY = 0;
+  let movedTooFar = false;
 
   characterWrapper.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return; // 좌클릭만 반응
     isDragging = true;
     startX = e.screenX;
     startY = e.screenY;
+    pressX = e.screenX;
+    pressY = e.screenY;
+    movedTooFar = false;
   });
 
   window.addEventListener('mousemove', (e) => {
     if (!isDragging) return;
+    if (Math.abs(e.screenX - pressX) >= CLICK_MOVE_LIMIT || Math.abs(e.screenY - pressY) >= CLICK_MOVE_LIMIT) {
+      movedTooFar = true;
+    }
     const deltaX = e.screenX - startX;
     const deltaY = e.screenY - startY;
     startX = e.screenX;
@@ -655,6 +794,19 @@ if (window.widgetAPI) {
 
   window.addEventListener('mouseup', () => {
     isDragging = false;
+  });
+
+  // 사진 클릭(끌지 않았을 때)·Enter·Space: 각 단계 풀 안에서 사진 다시 뽑기
+  // 마우스로 누를 때는 포커스를 옮기지 않음 (포커스가 남으면 말풍선이 계속 열려 있음)
+  characterCard.addEventListener('mousedown', (e) => e.preventDefault());
+  characterCard.addEventListener('click', (e) => {
+    if (e.button !== 0 || movedTooFar) return;
+    shuffleCatMap();
+  });
+  characterCard.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    shuffleCatMap();
   });
 
   // 정밀 마우스 호버 감지 (캐릭터 본체 및 말풍선에 닿았을 때만 활성화)
@@ -675,12 +827,13 @@ if (window.widgetAPI) {
     }
   }
 
-  characterCard.addEventListener('mouseenter', () => {
+  // 사원증 어디에 마우스를 올려도 말풍선 열기 (사진·사용률·리셋 시간 포함)
+  characterWrapperEl.addEventListener('mouseenter', () => {
     isHoveringCharacter = true;
     updateBubbleState();
   });
 
-  characterCard.addEventListener('mouseleave', () => {
+  characterWrapperEl.addEventListener('mouseleave', () => {
     isHoveringCharacter = false;
     updateBubbleState();
   });
@@ -728,7 +881,6 @@ if (window.widgetAPI) {
     const isInteractive =
       e.target.closest('#characterCard') ||
       e.target.closest('#characterWrapper') ||
-      e.target.closest('#shuffleBtn') ||
       e.target.closest('#minimizeBtn') ||
       e.target.closest('#speechBubble') ||
       e.target.closest('.simulation-bar') ||

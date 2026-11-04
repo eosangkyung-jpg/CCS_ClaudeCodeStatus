@@ -1,3 +1,8 @@
+/* 버튼·입력칸은 브라우저 기본 글꼴을 쓰므로 위젯 글꼴을 물려받게 함 */
+button, input, select, textarea {
+  font-family: inherit;
+}
+
 /* ─── 색 토큰 (위젯은 어두운 단일 테마) ─── */
 :root {
   --surface-0: #0d0e14;       /* 말풍선 바탕 */
@@ -437,14 +442,16 @@ html, body {
   border-color: var(--accent-strong);
 }
 
-/* 캐릭터 래퍼 (드래그 가능) */
+/* ─── 사원증 (드래그 가능) ───
+   크기 226×325. 투명 비닐 케이스 이미지(badge-holder.png: 원본 1024×1536을 678×1017로 줄인 뒤
+   사진 아래 종이 42px(위젯 기준 14px)를 잘라 678×975) 위에
+   종이 영역(.badge-paper)을 겹치고, 그 안에 사진·사용률·리셋 시간·도장을 놓는다.
+   종이 영역 좌표는 원본 이미지의 종이 위치(x112~912, y334~1412)를 226px 폭으로 환산한 값. */
 .character-wrapper {
   position: relative;
-  width: 170px;
-  height: 170px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  width: 226px;
+  height: 325px;
+  flex: none;
   cursor: grab;
 }
 
@@ -452,20 +459,36 @@ html, body {
   cursor: grabbing;
 }
 
-/* 캐릭터 카드 */
+.badge-holder {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.badge-paper {
+  position: absolute;
+  left: 24.7px;
+  top: 73.7px;
+  width: 176.6px;
+  height: 223.9px; /* 237.9 - 14 (2026-11-05 사원증 14px 줄임) */
+  color: #1c1917;
+  overflow: hidden; /* 도장이 종이 밖으로 나간 부분은 숨김 */
+}
+
+/* 사진 칸: 종이 안 정사각형 150px (원본 회색 칸보다 넓게) */
 .character-card {
-  position: relative;
-  width: 156px;
-  height: 156px;
-  border-radius: 26px;
-  background: var(--white);
+  position: absolute;
+  left: 13.3px;
+  top: 13.3px;
+  width: 150px;
+  height: 150px;
   overflow: hidden;
-  box-shadow: none;
-  border: 3px solid rgba(255, 255, 255, 0.9);
-  transition: transform 0.2s ease, filter 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: #bfbfbf;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transition: filter 0.3s ease;
 }
 
 .character-card img {
@@ -474,113 +497,151 @@ html, body {
   object-fit: cover;
   display: block;
   pointer-events: none;
+  -webkit-user-drag: none;
 }
 
-/* 위급 상태 흔들림 애니메이션 */
-@keyframes shake {
-  0% { transform: translate(0, 0) rotate(0deg); }
-  25% { transform: translate(-2px, 1px) rotate(-1deg); }
-  50% { transform: translate(2px, -1px) rotate(1deg); }
-  75% { transform: translate(-1px, -1px) rotate(-0.5deg); }
-  100% { transform: translate(1px, 1px) rotate(0.5deg); }
+/* 비닐 반사광이 사진 위에도 살짝 걸치게 */
+.character-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 28%, rgba(255, 255, 255, 0) 72%, rgba(255, 255, 255, 0.18) 100%);
 }
 
-.character-card.shake {
-  animation: shake 0.35s infinite ease-in-out;
-  border-color: var(--danger);
+/* 95~99% 위기: 사원증이 아니라 사진만 부들부들 떨림. 떨려도 칸 가장자리가 비지 않게 사진을 살짝 키움 */
+@keyframes tremble {
+  0%   { transform: scale(1.08) translate(0, 0) rotate(0deg); }
+  20%  { transform: scale(1.08) translate(-1.5px, 1px) rotate(-0.6deg); }
+  40%  { transform: scale(1.08) translate(1.5px, -1px) rotate(0.5deg); }
+  60%  { transform: scale(1.08) translate(-1px, -1.5px) rotate(-0.4deg); }
+  80%  { transform: scale(1.08) translate(1px, 1.5px) rotate(0.6deg); }
+  100% { transform: scale(1.08) translate(0, 0) rotate(0deg); }
+}
+
+.character-card.shake img {
+  transform: scale(1.08);
+  animation: tremble 0.14s linear infinite;
 }
 
 /* 100% 소진 시 흑백 */
 .character-card.exhausted {
   filter: grayscale(100%) contrast(1.1);
-  border-color: var(--text-faint);
 }
 
-/* 100% 리셋 카운트다운: 사진 한가운데 흰색 디지털 숫자 */
-/* DSEG7 Classic (SIL OFL 1.1) — 라이선스: src/assets/fonts/DSEG-LICENSE.txt */
+/* 사진 아래: 사용률 %(왼쪽, 크게) + 리셋 시간(오른쪽). 두 덩어리의 아랫줄을 맞춤 */
+/* Bebas Neue (SIL OFL 1.1) — 라이선스: src/assets/fonts/BebasNeue-OFL.txt */
 @font-face {
-  font-family: "DSEG7 Classic";
-  src: url("../assets/fonts/DSEG7Classic-Bold.woff2") format("woff2");
-  font-weight: 700;
+  font-family: "Bebas Neue";
+  src: url("../assets/fonts/BebasNeue-Regular.ttf") format("truetype");
+  font-weight: 400;
   font-style: normal;
 }
 
-.countdown-badge {
+.badge-fields {
   position: absolute;
-  inset: 0;
+  left: 13.3px;
+  right: 13.3px;
+  top: 166px;
+  bottom: 5px; /* 사용률·리셋 시간을 종이 아래쪽으로 4px 내림 */
   display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--white);
-  font-family: "DSEG7 Classic", Consolas, Menlo, monospace;
-  font-weight: 700;
-  font-size: 20px;
-  letter-spacing: 1px;
-  font-variant-numeric: tabular-nums;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.45),
-    0 0 8px rgba(0, 0, 0, 0.3);
-  pointer-events: none;
-  z-index: 5;
-}
-
-/* 오른쪽 아래 퍼센트 칩 */
-.percent-chip {
-  position: absolute;
-  bottom: 0px;
-  right: 0px;
-  background: var(--float-bg);
-  color: var(--text-1);
-  font-size: 11px;
-  font-weight: 800;
-  padding: 3px 8px;
-  border-radius: 10px;
-  border: 2px solid var(--white);
-  box-shadow: none;
+  /* 사용률 숫자와 리셋 시간의 글자 아랫줄(기준선)을 맞춤. 리셋 쪽은 마지막 줄(시간) 기준 */
+  align-items: last baseline;
+  justify-content: space-between;
+  gap: 6px;
   pointer-events: none;
 }
 
-/* 고양이 사진 다시 섞기 (🎲) 버튼 */
-.shuffle-btn {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  width: 24px;
-  height: 24px;
-  background: var(--float-bg);
-  backdrop-filter: blur(8px);
-  border: 1.5px solid rgba(255, 255, 255, 0.85);
-  border-radius: 50%;
-  color: var(--text-1);
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 8;
-  box-shadow: none;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.15s ease;
+.badge-num {
+  font-family: "Bebas Neue", "Segoe UI", sans-serif;
+  letter-spacing: 0.01em; /* 자간 +10 (디자인 도구 단위: 글자 크기의 1/1000) */
   line-height: 1;
-  user-select: none;
+  color: #1c1917;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.shuffle-btn:hover {
-  background: var(--accent-strong);
-  transform: scale(1.15) rotate(45deg);
-  border-color: var(--white);
+/* 숫자와 % 기호를 글자 아래 기준선에 맞춤 */
+.badge-pct {
+  display: flex;
+  align-items: baseline;
+}
+.badge-pct .badge-num {
+  font-size: 52px;
+}
+.badge-pct .badge-unit {
+  font-size: 24.7px;
+  margin-left: 1px;
 }
 
-.shuffle-btn:active {
-  transform: scale(0.9) rotate(90deg);
+/* RESET IN 글자와 시간 모두 오른쪽 정렬 */
+.badge-reset {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.badge-reset small {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  color: #57534e;
+  text-transform: uppercase;
+}
+.badge-reset .badge-num {
+  font-size: 16.6px;
+}
+
+/* 90% 이상·소진: 사용률과 리셋 시간을 빨갛게 */
+.character-wrapper.danger .badge-pct .badge-num,
+.character-wrapper.exhausted .badge-num {
+  color: #b91c1c;
+}
+
+/* 사원증 하단 게이지 바: 바닥에서 6px 위, 솔리드 차콜 블랙 */
+.badge-gauge {
+  position: absolute;
+  left: 13.3px;
+  right: 13.3px;
+  bottom: 6px;
+  height: 2.5px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+.badge-gauge-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #1c1917; /* 사원증 숫자와 동일한 차콜 블랙 */
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* CCS 도장: 옅게(18%), 종이 잉크처럼 섞이게 (2026-11-05 사용자 지정 위치·크기·각도) */
+.badge-stamp {
+  position: absolute;
+  left: 89px;
+  top: 131px; /* 145 - 14: 사원증을 줄인 만큼 올려 숫자 오른쪽에 걸친 모양 유지 */
+  width: 108px;
+  height: 108px;
+  opacity: 0.18;
+  mix-blend-mode: multiply;
+  transform: rotate(-42deg);
+  pointer-events: none;
+  -webkit-user-drag: none;
+  z-index: 3;
 }
 
 /* 트레이로 숨기기 (-) 버튼 */
 .minimize-btn {
   position: absolute;
-  top: 0px;
-  right: 0px;
-  width: 24px;
-  height: 24px;
+  top: 11px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
   background: var(--float-bg);
   backdrop-filter: blur(8px);
   border: 1.5px solid rgba(255, 255, 255, 0.8);
@@ -632,17 +693,24 @@ input[type="checkbox"]:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
-.shuffle-btn:focus-visible,
 .minimize-btn:focus-visible {
   outline-offset: 1px;
 }
+/* 사진(클릭하면 다시 뽑기)에 키보드 포커스 */
+.character-card:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
 
 /* ─── 움직임 줄이기 설정 대응 ─── */
-/* 흔들림·튕김 대신 정지 상태로 같은 정보를 전달: 95% 이상은 빨간 테두리 + 굵은 테두리로 유지 */
+/* 떨림·튕김 대신 정지 상태로 같은 정보를 전달: 95~99%는 사진에 빨간 테두리 */
 @media (prefers-reduced-motion: reduce) {
-  .character-card.shake {
+  .character-card.shake img {
     animation: none;
-    border-width: 4px;
+    transform: none;
+  }
+  .character-card.shake {
+    box-shadow: 0 0 0 2px var(--danger);
   }
   .speech-bubble,
   .speech-bubble.auto-popup {
@@ -650,8 +718,6 @@ input[type="checkbox"]:focus-visible {
     transition: opacity 0.15s linear, visibility 0.15s;
     transform: none !important;
   }
-  .shuffle-btn:hover,
-  .shuffle-btn:active,
   .minimize-btn:hover,
   .minimize-btn:active {
     transform: none;
@@ -678,18 +744,6 @@ input[type="checkbox"]:focus-visible {
   align-items: center;
   min-height: 24px;
   cursor: pointer;
-}
-
-/* 카운트다운: 꺼진 세그먼트(88:88:88)를 옅게 깔아 진짜 전자시계처럼 보이게 */
-.countdown-digits {
-  display: grid;
-}
-.countdown-digits > span {
-  grid-area: 1 / 1;
-}
-.countdown-ghost {
-  color: rgba(255, 255, 255, 0.28);
-  text-shadow: none;
 }
 
 /* 글자 크기 선택 (100/125/150%) */
@@ -729,4 +783,181 @@ input[type="checkbox"]:focus-visible {
 .scale-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* Claude Code 작업 중 배지: 사진 안 왼쪽 아래 */
+.activity-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-sizing: border-box;
+  height: 22px;
+  padding: 0 9px 0 7px;
+  line-height: 1;
+  border-radius: 999px;
+  background: var(--float-bg);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--text-1);
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.activity-badge[hidden] {
+  display: none;
+}
+.activity-spinner {
+  display: inline-block;
+  width: 12px;
+  text-align: center;
+  color: #fb923c; /* 따뜻한 주황: 고양이 콘셉트 포인트 색 */
+  font-size: 13px;
+  line-height: 1;
+}
+.activity-badge.waiting .activity-spinner {
+  color: #fbbf24;
+}
+
+/* 설정: Claude Code 작업 표시 켜기/끄기 */
+/* .hooks-btn은 이제 .scale-options 내의 .scale-btn을 공통으로 사용합니다. */
+
+/* 작업 중 + 사용량 높음: 사진 위 붉은 막 (색을 해치지 않게 multiply로 물들임) */
+.tint-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: #ef4444;
+  mix-blend-mode: multiply;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.character-card.tint-light .tint-overlay {
+  opacity: 0.38;
+}
+.character-card.tint-strong .tint-overlay {
+  opacity: 0.55;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .character-card.tint-strong .tint-overlay {
+    animation: tint-breathe 1.6s ease-in-out infinite alternate;
+  }
+}
+@keyframes tint-breathe {
+  from { opacity: 0.42; }
+  to { opacity: 0.6; }
+}
+
+/* 100% 소진: 영정 사진처럼 위쪽 양 모서리에 검은 띠 (사진 칸에 맞춰 잘림) */
+.mourning-ribbons {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  display: none;
+}
+.character-card.exhausted .mourning-ribbons {
+  display: block;
+}
+.ribbon {
+  position: absolute;
+  top: 22px;
+  width: 110px;
+  height: 15px;
+  background: #0a0a0a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+.ribbon-left {
+  left: -30px;
+  transform: rotate(-45deg);
+}
+.ribbon-right {
+  right: -30px;
+  transform: rotate(45deg);
+}
+
+/* 경고 효과 '끄기' (설정): 움직임·붉은 막 없이 정보만 전달 */
+body.effects-off .character-card.shake img {
+  animation: none;
+  transform: none;
+}
+body.effects-off .character-card.shake {
+  box-shadow: 0 0 0 2px var(--danger);
+}
+body.effects-off .tint-overlay {
+  display: none;
+}
+body.effects-off .speech-bubble,
+body.effects-off .speech-bubble.auto-popup {
+  animation: none;
+  transition: opacity 0.15s linear;
+  transform: none !important;
+}
+body.effects-off .minimize-btn:hover,
+body.effects-off .minimize-btn:active {
+  transform: none;
+}
+
+/* 설정 옵션 이름 옆 (?) 도움말: 마우스를 올리거나 키보드 포커스 시 설명 표시 */
+.opt-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.help-tip {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--text-faint);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.help-tip:hover,
+.help-tip:focus-visible {
+  color: var(--white);
+  border-color: var(--text-muted);
+}
+.help-pop {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  width: 210px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #1c2130;
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.help-tip:hover + .help-pop,
+.help-tip:focus-visible + .help-pop {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 사진 위 작은 글자는 한 단계 키워 또렷하게 */
+.activity-badge {
+  font-size: 12px;
 }
