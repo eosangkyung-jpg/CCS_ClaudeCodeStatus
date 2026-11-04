@@ -214,7 +214,7 @@ async function fetchUsageData() {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
-        'User-Agent': `CCS-ClaudeCodeStatus/${require('../../package.json').version}`,
+        'User-Agent': `CCS-CrazyCatStatus/${require('../../package.json').version}`,
       },
     });
   } catch (err) {

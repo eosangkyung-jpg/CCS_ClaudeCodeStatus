@@ -452,7 +452,7 @@ function updateTrayMenu() {
 function createTray() {
   const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'images', 'cat1.jpg')).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
-  tray.setToolTip('CCS (ClaudeCodeStatus) · 실시간 사용량');
+  tray.setToolTip('CCS (CrazyCatStatus) · 실시간 사용량');
   updateTrayMenu();
 
   tray.on('click', () => {
