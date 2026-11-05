@@ -14,7 +14,7 @@
     "appId": "com.kimbap.sideproj-status-widget",
     "productName": "CCS",
     "directories": {
-      "output": "dist"
+      "output": "dist_out"
     },
     "files": [
       "src/**/*",
@@ -68,7 +68,7 @@
       {
         "provider": "github",
         "owner": "eosangkyung-jpg",
-        "repo": "CCS_ClaudeCodeStatus",
+        "repo": "CCS_CrazyCatStatus",
         "releaseType": "release"
       }
     ]

@@ -1,6 +1,6 @@
 # CCS 배포 기록 및 가이드
 
-> 대상 저장소: https://github.com/eosangkyung-jpg/CCS_ClaudeCodeStatus
+> 대상 저장소: https://github.com/eosangkyung-jpg/CCS_CrazyCatStatus
 > 최종 갱신: 2026-11-05
 > 이 문서 하나에 배포 구조, 설정 현황, 배포 방법, 지금까지의 시도와 실패, 남은 일을 모은다. (구 `RELEASE.md` 내용 포함)
 
@@ -11,28 +11,28 @@
 | 항목 | 주소 / 값 |
 |---|---|
 | 코드 저장소 (비공개) | https://github.com/eosangkyung-jpg/sideproj_status |
-| 배포 저장소 (공개) | https://github.com/eosangkyung-jpg/CCS_ClaudeCodeStatus |
-| 설치 파일 (Releases) | https://github.com/eosangkyung-jpg/CCS_ClaudeCodeStatus/releases |
-| **친구에게 줄 링크** (다운로드 페이지) | https://eosangkyung-jpg.github.io/CCS_ClaudeCodeStatus/ |
+| 배포 저장소 (공개) | https://github.com/eosangkyung-jpg/CCS_CrazyCatStatus |
+| 설치 파일 (Releases) | https://github.com/eosangkyung-jpg/CCS_CrazyCatStatus/releases |
+| **친구에게 줄 링크** (다운로드 페이지) | https://eosangkyung-jpg.github.io/CCS_CrazyCatStatus/ |
 | 자동 빌드 실행 기록 | https://github.com/eosangkyung-jpg/sideproj_status/actions |
-| Windows 설치 파일 고정 링크 | https://github.com/eosangkyung-jpg/CCS_ClaudeCodeStatus/releases/latest/download/CCS-Setup.exe |
-| macOS 설치 파일 고정 링크 | https://github.com/eosangkyung-jpg/CCS_ClaudeCodeStatus/releases/latest/download/CCS-mac.dmg |
+| Windows 설치 파일 고정 링크 | https://github.com/eosangkyung-jpg/CCS_CrazyCatStatus/releases/latest/download/CCS-Setup.exe |
+| macOS 설치 파일 고정 링크 | https://github.com/eosangkyung-jpg/CCS_CrazyCatStatus/releases/latest/download/CCS-mac.dmg |
 
-- 앱 이름: **CCS (ClaudeCodeStatus)** — Claude 플랜 사용량만 조회 (Gemini 기능은 삭제됨)
+- 앱 이름: **CCS (CrazyCatStatus)** — Claude 플랜 사용량만 조회 (Gemini 기능은 삭제됨)
 - 배포 대상: 같이 일하는 친구들 (공개 배포·판매 없음)
-- 현재 앱 버전: `0.1.1` (`package.json`)
+- 현재 앱 버전: `0.2.0` (`package.json`)
 
 ## 2. 배포 구조
 
 ```
 [비공개] sideproj_status            ← 코드
-   │  v로 시작하는 태그 push (예: v0.1.2)
+   │  v로 시작하는 태그 push (예: v0.2.0)
    ▼
 GitHub Actions (.github/workflows/release.yml)
    ├─ windows-latest  → CCS-Setup.exe
    └─ macOS 러너      → CCS-mac.dmg (Intel + Apple Silicon 유니버설)
    ▼  (Secret RELEASES_TOKEN으로 업로드)
-[공개] CCS_ClaudeCodeStatus          ← 설치 파일 + 다운로드 페이지만
+[공개] CCS_CrazyCatStatus           ← 설치 파일 + 다운로드 페이지만
    ├─ Releases: 버전별 설치 파일
    └─ GitHub Pages(main / root): index.html, icon.png, README.md
         → 접속한 OS를 감지해 맞는 설치 파일 버튼을 보여 줌
