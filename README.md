@@ -1,4 +1,5 @@
-# CCS (ClaudeCodeStatus)
+# CCS (Crazy_Cat_Status)
+*or Claude_Code_Status LOL!!!*
 
 🐱 Claude 사용량을 화면 구석 고양이가 알려 주는 데스크톱 위젯 (Windows / macOS)
 
